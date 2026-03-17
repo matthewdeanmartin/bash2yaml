@@ -1,0 +1,55 @@
+site_name: "bash2yaml"
+site_url: "https://bash2yaml.readthedocs.io/"
+site_author: "Matthew Dean Martin <matthewdeanmartin@gmail.com>"
+site_description: "Documentation of bash2yaml, a tool for compiling bash to .gitlab-ci.yml"
+
+repo_url: "https://github.com/matthewdeanmartin/bash2yaml"
+
+theme:
+  name: readthedocs
+  features:
+    - navigation.footer
+
+edit_uri: edit/main/docs/
+
+markdown_extensions:
+  - attr_list
+  - codehilite
+  - toc:
+      permalink: true
+
+nav:
+  - "Overview":
+      - "Readme.md": "overview/README.md"
+      - "Who is this for?": "overview/who_is_this_for.md"
+  - "Installation": "installation.md"
+  - "Usage":
+      - "Quick Start": "usage/usage.md"
+      - "Commands": "usage/commands.md"
+      - "Configuration": "usage/config.md"
+      - "Workflows": "usage/workflows.md"
+  - "Level up your YAML + Bash":
+      - "Orchestrating " : "quality_gates/orchestrating.md"
+      - "Formatting YAML": "quality_gates/formatting.md"
+      - "Linting" : "quality_gates/linting.md"
+      - "Testing" : "quality_gates/testing.md"
+  - "Extending":
+    - "Extension points": "extending/extending.md"
+    - "API": "extending/API.md"
+    - "Contributing": "extending/CONTRIBUTING.md"
+  - "Prior Art":
+      - "Keep Bash in Yaml": "PRIOR_ART.md"
+  - "Change Log": "CHANGELOG.md"
+
+validation:
+  nav:
+    omitted_files: warn
+  omitted_files: warn
+  absolute_links: warn  # Or 'relative_to_docs' - new in MkDocs 1.6
+  unrecognized_links: warn
+  anchors: warn  # New in MkDocs 1.6
+
+plugins:
+  - search
+  - mkdocstrings
+  - print-site

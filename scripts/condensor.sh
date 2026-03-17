@@ -1,0 +1,1 @@
+python -m scripts.condensor bash2yaml --package bash2yaml --output source_condensed.md --signatures-only
