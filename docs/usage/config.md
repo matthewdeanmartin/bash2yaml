@@ -43,10 +43,14 @@ export BASH2YAML_QUIET=1
 # These settings apply to all commands unless overridden in a command-specific section.
 # They can also be set via environment variables (e.g., BASH2YAML_INPUT_DIR).
 
+# The CI/CD platform target. Supported: "gitlab", "github".
+# If omitted, bash2yaml auto-detects from the input filename/directory.
+# target = "gitlab"
+
 # The root directory for your uncompiled source files (.yml, .sh, etc.).
 input_dir = "ci/src"
 
-# The directory where compiled GitLab CI files will be written.
+# The directory where compiled CI/CD files will be written.
 output_dir = "ci/dist"
 
 # Default number of parallel processes to use for commands like 'compile' and 'lint'.

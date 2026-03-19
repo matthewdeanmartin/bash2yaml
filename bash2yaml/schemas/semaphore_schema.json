@@ -1,0 +1,90 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Semaphore CI Pipeline",
+  "description": "Minimal schema for Semaphore CI .semaphore/semaphore.yml",
+  "type": "object",
+  "required": ["version", "name", "agent", "blocks"],
+  "properties": {
+    "version": {"type": "string"},
+    "name": {"type": "string"},
+    "agent": {
+      "type": "object",
+      "properties": {
+        "machine": {"type": "object"}
+      }
+    },
+    "blocks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "task": {
+            "type": "object",
+            "properties": {
+              "jobs": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {"type": "string"},
+                    "commands": {"type": "array", "items": {"type": "string"}}
+                  }
+                }
+              },
+              "env_vars": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {"type": "string"},
+                    "value": {"type": "string"}
+                  }
+                }
+              },
+              "prologue": {
+                "type": "object",
+                "properties": {
+                  "commands": {"type": "array", "items": {"type": "string"}}
+                }
+              },
+              "epilogue": {
+                "type": "object",
+                "properties": {
+                  "always": {
+                    "type": "object",
+                    "properties": {
+                      "commands": {"type": "array", "items": {"type": "string"}}
+                    }
+                  },
+                  "on_pass": {
+                    "type": "object",
+                    "properties": {
+                      "commands": {"type": "array", "items": {"type": "string"}}
+                    }
+                  },
+                  "on_fail": {
+                    "type": "object",
+                    "properties": {
+                      "commands": {"type": "array", "items": {"type": "string"}}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "promotions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "pipeline_file": {"type": "string"}
+        }
+      }
+    }
+  }
+}

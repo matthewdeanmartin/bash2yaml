@@ -26,6 +26,7 @@ from ruamel.yaml.scalarstring import FoldedScalarString
 
 from bash2yaml.config import config
 from bash2yaml.errors.exceptions import ValidationFailed
+from bash2yaml.targets.base import BaseTarget
 from bash2yaml.utils.mock_ci_vars import generate_mock_ci_variables_script
 from bash2yaml.utils.pathlib_polyfills import is_relative_to
 from bash2yaml.utils.utils import short_path
@@ -369,6 +370,7 @@ def process_decompile_job(
     dry_run: bool = False,
     global_vars_filename: str | None = None,
     minimum_lines: int = 1,
+    target: BaseTarget | None = None,
 ) -> tuple[int, dict[str, str]]:
     """Process a single job definition to decompile its script and variables blocks.
 
@@ -378,35 +380,72 @@ def process_decompile_job(
     scripts_info: dict[str, str] = {}
 
     # Job-specific variables first
+    vars_key = target.variables_key_name() if target is not None else "variables"
     job_vars_filename: str | None = None
-    if isinstance(job_data.get("variables"), dict):
+    if isinstance(job_data.get(vars_key), dict):
         sanitized_job_name = re.sub(r"[^\w.-]", "-", job_name.lower())
         sanitized_job_name = re.sub(r"-+", "-", sanitized_job_name).strip("-")
         job_vars_filename = decompile_variables_block(
-            job_data["variables"], sanitized_job_name, scripts_output_path, dry_run=dry_run
+            job_data[vars_key], sanitized_job_name, scripts_output_path, dry_run=dry_run
         )
         if job_vars_filename:
             decompiled_count += 1
 
     # Script-like keys to decompile
-    for key in ("script", "before_script", "after_script", "pre_get_sources_script"):
-        if key in job_data and job_data[key]:
-            _, command = decompile_script_block(
-                script_content=job_data[key],
-                job_name=job_name,
-                script_key=key,
-                scripts_output_path=scripts_output_path,
-                yaml_dir=yaml_dir,
-                dry_run=dry_run,
-                global_vars_filename=global_vars_filename,
-                job_vars_filename=job_vars_filename,
-                minimum_lines=minimum_lines,
-            )
-            if command:
-                job_data[key] = FoldedScalarString(command.replace("\\", "/"))
-                decompiled_count += 1
-                # Store just the filename for Makefile generation
-                scripts_info[key] = command.lstrip("./")
+    script_keys = (
+        target.script_keys()
+        if target is not None
+        else ["script", "before_script", "after_script", "pre_get_sources_script"]
+    )
+
+    # For step-based platforms (e.g. GitHub Actions), iterate steps within the job.
+    # Steps with ``uses:`` are skipped — they are reusable actions.
+    if "steps" in job_data and isinstance(job_data["steps"], list):
+        for idx, step in enumerate(job_data["steps"]):
+            if not isinstance(step, dict):
+                continue
+            if "uses" in step:
+                continue
+            for key in script_keys:
+                if key in step and step[key]:
+                    step_name = step.get("name", f"step{idx}")
+                    _pattern = r"[^\w.-]"
+                    step_job_name = f"{job_name}-{re.sub(_pattern, '-', step_name.lower())}"
+                    _, command = decompile_script_block(
+                        script_content=step[key],
+                        job_name=step_job_name,
+                        script_key=key,
+                        scripts_output_path=scripts_output_path,
+                        yaml_dir=yaml_dir,
+                        dry_run=dry_run,
+                        global_vars_filename=global_vars_filename,
+                        job_vars_filename=job_vars_filename,
+                        minimum_lines=minimum_lines,
+                    )
+                    if command:
+                        step[key] = FoldedScalarString(command.replace("\\", "/"))
+                        decompiled_count += 1
+                        scripts_info[f"{step_name}/{key}"] = command.lstrip("./")
+    else:
+        # Direct job-level script keys (GitLab-style)
+        for key in script_keys:
+            if key in job_data and job_data[key]:
+                _, command = decompile_script_block(
+                    script_content=job_data[key],
+                    job_name=job_name,
+                    script_key=key,
+                    scripts_output_path=scripts_output_path,
+                    yaml_dir=yaml_dir,
+                    dry_run=dry_run,
+                    global_vars_filename=global_vars_filename,
+                    job_vars_filename=job_vars_filename,
+                    minimum_lines=minimum_lines,
+                )
+                if command:
+                    job_data[key] = FoldedScalarString(command.replace("\\", "/"))
+                    decompiled_count += 1
+                    # Store just the filename for Makefile generation
+                    scripts_info[key] = command.lstrip("./")
 
     return decompiled_count, scripts_info
 
@@ -420,9 +459,14 @@ def iterate_yaml_files(root: Path) -> Iterable[Path]:
 
 
 def run_decompile_gitlab_file(
-    *, input_yaml_path: Path, output_dir: Path, dry_run: bool = False, minimum_lines: int = 1
+    *,
+    input_yaml_path: Path,
+    output_dir: Path,
+    dry_run: bool = False,
+    minimum_lines: int = 1,
+    target: BaseTarget | None = None,
 ) -> tuple[int, int, Path]:
-    """Decompile a *single* GitLab CI YAML file into scripts + modified YAML in *output_dir*.
+    """Decompile a *single* CI YAML file into scripts + modified YAML in *output_dir*.
 
     Returns (jobs_processed, total_files_created, output_yaml_path).
     """
@@ -448,16 +492,23 @@ def run_decompile_gitlab_file(
     jobs_info: dict[str, dict[str, str]] = {}
 
     # Top-level variables -> global_variables.sh next to YAML
+    vars_key = target.variables_key_name() if target is not None else "variables"
     global_vars_filename: str | None = None
-    if isinstance(data.get("variables"), dict):
-        logger.info("Processing global variables block.")
-        global_vars_filename = decompile_variables_block(data["variables"], "global", scripts_dir, dry_run=dry_run)
+    if isinstance(data.get(vars_key), dict):
+        logger.info("Processing global variables block (key=%s).", vars_key)
+        global_vars_filename = decompile_variables_block(data[vars_key], "global", scripts_dir, dry_run=dry_run)
         if global_vars_filename:
             total_files_created += 1
 
-    # Jobs
-    for key, value in data.items():
-        if isinstance(value, dict) and "script" in value:
+    # Jobs — use target.job_entries() when available for platforms where
+    # jobs aren't top-level (e.g. GitHub's ``jobs:`` container).
+    if target is not None:
+        _job_iter = target.job_entries(data)
+    else:
+        _job_iter = [(k, v) for k, v in data.items() if isinstance(v, dict) and "script" in v]
+
+    for key, value in _job_iter:
+        if True:
             logger.debug("Processing job: %s", key)
             jobs_processed += 1
             decompiled_count, scripts_info = process_decompile_job(
@@ -468,6 +519,7 @@ def run_decompile_gitlab_file(
                 dry_run=dry_run,
                 global_vars_filename=global_vars_filename,
                 minimum_lines=minimum_lines,
+                target=target,
             )
             total_files_created += decompiled_count
             if scripts_info:
@@ -482,8 +534,11 @@ def run_decompile_gitlab_file(
                 yaml.dump(data, f)
             with output_yaml_path.open() as f:
                 new_content = f.read()
-                validator = GitLabCIValidator()
-                ok, problems = validator.validate_ci_config(new_content)
+                if target is not None:
+                    ok, problems = target.validate(new_content)
+                else:
+                    validator = GitLabCIValidator()
+                    ok, problems = validator.validate_ci_config(new_content)
                 if not ok:
                     raise ValidationFailed(problems)
     else:
@@ -503,7 +558,12 @@ def run_decompile_gitlab_file(
 
 
 def run_decompile_gitlab_tree(
-    *, input_root: Path, output_dir: Path, dry_run: bool = False, minimum_lines: int = 1
+    *,
+    input_root: Path,
+    output_dir: Path,
+    dry_run: bool = False,
+    minimum_lines: int = 1,
+    target: BaseTarget | None = None,
 ) -> tuple[int, int, int]:
     """Decompile *all* ``*.yml`` / ``*.yaml`` under ``input_root`` into ``output_dir``.
 
@@ -522,7 +582,7 @@ def run_decompile_gitlab_tree(
         rel_dir = in_file.parent.relative_to(input_root)
         out_subdir = (output_dir / rel_dir).resolve()
         jobs, created, _ = run_decompile_gitlab_file(
-            input_yaml_path=in_file, output_dir=out_subdir, dry_run=dry_run, minimum_lines=minimum_lines
+            input_yaml_path=in_file, output_dir=out_subdir, dry_run=dry_run, minimum_lines=minimum_lines, target=target
         )
         yaml_files_processed += 1
         total_jobs += jobs

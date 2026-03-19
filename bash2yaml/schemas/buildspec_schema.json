@@ -1,0 +1,109 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AWS CodeBuild Buildspec",
+  "description": "Schema for AWS CodeBuild buildspec.yml",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": ["number", "string"],
+      "description": "Buildspec version"
+    },
+    "env": {
+      "type": "object",
+      "description": "Environment configuration",
+      "properties": {
+        "variables": {
+          "type": "object",
+          "description": "Plaintext environment variables"
+        },
+        "parameter-store": {
+          "type": "object",
+          "description": "SSM Parameter Store variables"
+        },
+        "secrets-manager": {
+          "type": "object",
+          "description": "Secrets Manager variables"
+        },
+        "exported-variables": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "shell": {
+          "type": "string"
+        }
+      }
+    },
+    "proxy": {
+      "type": "object"
+    },
+    "batch": {
+      "type": "object"
+    },
+    "phases": {
+      "type": "object",
+      "description": "Build phases",
+      "properties": {
+        "install": {
+          "$ref": "#/definitions/phase"
+        },
+        "pre_build": {
+          "$ref": "#/definitions/phase"
+        },
+        "build": {
+          "$ref": "#/definitions/phase"
+        },
+        "post_build": {
+          "$ref": "#/definitions/phase"
+        }
+      },
+      "additionalProperties": {
+        "$ref": "#/definitions/phase"
+      }
+    },
+    "reports": {
+      "type": "object"
+    },
+    "artifacts": {
+      "type": "object",
+      "properties": {
+        "files": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "name": {"type": "string"},
+        "discard-paths": {"type": ["string", "boolean"]},
+        "base-directory": {"type": "string"}
+      }
+    },
+    "cache": {
+      "type": "object"
+    }
+  },
+  "definitions": {
+    "phase": {
+      "type": "object",
+      "properties": {
+        "runtime-versions": {
+          "type": "object"
+        },
+        "on-failure": {
+          "type": "string",
+          "enum": ["ABORT", "CONTINUE"]
+        },
+        "commands": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "finally": {
+          "type": "object",
+          "properties": {
+            "commands": {
+              "type": "array",
+              "items": {"type": "string"}
+            }
+          }
+        }
+      }
+    }
+  }
+}

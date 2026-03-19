@@ -32,6 +32,10 @@ class Defaults:
         return maybe_inline_interpreter_command(line, scripts_root)
 
     @hookimpl
+    def register_targets(self) -> None:
+        """Built-in targets are registered lazily via the registry module."""
+
+    @hookimpl
     def after_command(self, result: int, args: argparse.Namespace) -> None:
         """If a command was successful and --autogit was passed, run autogit."""
         if result != ExitCode.OK:

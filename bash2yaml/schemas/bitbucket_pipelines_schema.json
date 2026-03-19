@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Bitbucket Pipelines",
+  "description": "Minimal schema for Bitbucket Pipelines bitbucket-pipelines.yml",
+  "type": "object",
+  "properties": {
+    "image": {
+      "oneOf": [{"type": "string"}, {"type": "object"}]
+    },
+    "options": {"type": "object"},
+    "clone": {"type": "object"},
+    "definitions": {"type": "object"},
+    "pipelines": {
+      "type": "object",
+      "properties": {
+        "default": {"type": "array"},
+        "branches": {"type": "object"},
+        "tags": {"type": "object"},
+        "pull-requests": {"type": "object"},
+        "custom": {"type": "object"}
+      }
+    }
+  }
+}

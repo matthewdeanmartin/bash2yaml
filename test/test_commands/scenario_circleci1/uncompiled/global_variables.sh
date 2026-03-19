@@ -1,0 +1,2 @@
+CI_TOOL=bash2yaml
+VERSION=1.0.0

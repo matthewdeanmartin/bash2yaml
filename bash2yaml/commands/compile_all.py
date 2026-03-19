@@ -23,6 +23,7 @@ from bash2yaml.commands.input_change_detector import mark_compilation_complete, 
 from bash2yaml.config import config
 from bash2yaml.errors.exceptions import Bash2YamlError, CompileError, ValidationFailed
 from bash2yaml.plugins import get_pm
+from bash2yaml.targets.base import BaseTarget
 from bash2yaml.utils import diff_helpers
 from bash2yaml.utils.dotenv import parse_env_file
 from bash2yaml.utils.parse_bash import extract_script_path
@@ -278,10 +279,14 @@ def process_script_list(
     return rebuild_seq_like(compact_items, was_commented_seq, original_seq)
 
 
-def process_job(job_data: dict, scripts_root: Path) -> int:
+def process_job(job_data: dict, scripts_root: Path, target: BaseTarget | None = None) -> int:
     """Processes a single job definition to inline scripts."""
+    if target is not None:
+        script_keys = target.script_keys()
+    else:
+        script_keys = ["script", "before_script", "after_script", "pre_get_sources_script"]
     found = 0
-    for script_key in ["script", "before_script", "after_script", "pre_get_sources_script"]:
+    for script_key in script_keys:
         if script_key in job_data:
             result = process_script_list(job_data[script_key], scripts_root)
             if result != job_data[script_key]:
@@ -318,19 +323,24 @@ def inline_gitlab_scripts(
     scripts_root: Path,
     global_vars: dict[str, str],
     input_dir: Path,  # Path to look for job_name_variables.sh files
+    target: BaseTarget | None = None,
 ) -> tuple[int, str]:
     """
-    Loads a GitLab CI YAML file, inlines scripts, merges global and job-specific variables,
+    Loads a CI YAML file, inlines scripts, merges global and job-specific variables,
     reorders top-level keys, and returns the result as a string.
-    This version now supports inlining scripts in top-level lists used as YAML anchors.
+
+    When *target* is provided the adapter drives structure discovery; otherwise
+    the legacy GitLab-specific hard-coded logic is used (kept for backward compat).
     """
     inlined_count = 0
     yaml = get_yaml()
     data = yaml.load(io.StringIO(gitlab_ci_yaml))
 
     if global_vars:
-        logger.debug("Merging global variables into the YAML configuration.")
-        existing_vars = data.get("variables", CommentedMap())
+        # Use the target's variables key name if available (e.g. "env" for GitHub, "variables" for GitLab)
+        vars_key = target.variables_key_name() if target is not None else "variables"
+        logger.debug("Merging global variables into the YAML configuration (key=%s).", vars_key)
+        existing_vars = data.get(vars_key, CommentedMap())
 
         merged_vars = CommentedMap()
         # global first, then YAML-defined wins on conflict
@@ -339,53 +349,24 @@ def inline_gitlab_scripts(
         for k, v in existing_vars.items():
             merged_vars[k] = v
 
-        data["variables"] = merged_vars
+        data[vars_key] = merged_vars
 
-    for name in ["after_script", "before_script"]:
-        if name in data:
-            logger.warning(f"Processing top-level '{name}' section, even though gitlab has deprecated them.")
-            result = process_script_list(data[name], scripts_root)
-            if result != data[name]:
-                data[name] = result
+    if target is not None:
+        # --- Target-driven path ---
+        vars_key = target.variables_key_name()
 
-    # Process all jobs and top-level script lists (which are often used for anchors)
-    for job_name, job_data in data.items():
-        if job_name in [
-            "stages",
-            "variables",
-            "include",
-            "rules",
-            "image",
-            "services",
-            "cache",
-            "true",
-            "false",
-            "nil",
-        ]:
-            # that's not a job.
-            continue
-        if hasattr(job_data, "tag") and job_data.tag.value:
-            # Can't deal with !reference tagged jobs at all
-            continue
-        if hasattr(job_data, "anchor") and job_data.anchor.value:
-            # Can't deal with &anchor tagged jobs at all
-            # Okay, more exactly, we can inline, but we can't collapse lists because you can't tell if it is
-            # going into a script or some other block.
-            if not has_must_inline_pragma(job_data):
-                continue
-
-        # Handle top-level keys that are lists of scripts. This pattern is commonly
-        # used to create reusable script blocks with YAML anchors, e.g.:
-        # .my-script-template: &my-script-anchor
-        #   - ./scripts/my-script.sh
-        if isinstance(job_data, list):
-            logger.debug(f"Processing top-level list key '{job_name}', potentially a script anchor.")
-            result = process_script_list(job_data, scripts_root, collapse_lists=False)
-            if result != job_data:
-                data[job_name] = result
+        # Use the target adapter to discover all scriptable sections
+        sections = target.script_key_paths(data)
+        for section in sections:
+            is_top_level_list = isinstance(section.lines, list) and section.parent is data
+            collapse = not is_top_level_list
+            result = process_script_list(section.lines, scripts_root, collapse_lists=collapse)
+            if result != section.lines:
+                section.parent[section.script_key] = result
                 inlined_count += 1
-        elif isinstance(job_data, dict):
-            # Look for and process job-specific variables file
+
+        # Merge job-specific variables using target-aware job iteration
+        for job_name, job_data in target.job_entries(data):
             safe_job_name = job_name.replace(":", "_")
             job_vars_filename = f"{safe_job_name}_variables.sh"
             job_vars_path = input_dir / job_vars_filename
@@ -396,36 +377,84 @@ def inline_gitlab_scripts(
                 job_specific_vars = parse_env_file(content)
 
                 if job_specific_vars:
-                    existing_job_vars = job_data.get("variables", CommentedMap())
-                    # Start with variables from the .sh file
+                    existing_job_vars = job_data.get(vars_key, CommentedMap())
                     merged_job_vars = CommentedMap(job_specific_vars.items())
-                    # Update with variables from the YAML, so they take precedence
                     merged_job_vars.update(existing_job_vars)
-                    job_data["variables"] = merged_job_vars
+                    job_data[vars_key] = merged_job_vars
                     inlined_count += 1
+    else:
+        # --- Legacy hard-coded GitLab path (backward compat) ---
+        for name in ["after_script", "before_script"]:
+            if name in data:
+                logger.warning(f"Processing top-level '{name}' section, even though gitlab has deprecated them.")
+                result = process_script_list(data[name], scripts_root)
+                if result != data[name]:
+                    data[name] = result
 
-            # A simple heuristic for a "job" is a dictionary with a 'script' key.
-            if (
-                "script" in job_data
-                or "before_script" in job_data
-                or "after_script" in job_data
-                or "pre_get_sources_script" in job_data
-            ):
-                logger.debug(f"Processing job: {job_name}")
-                inlined_count += process_job(job_data, scripts_root)
-            if "hooks" in job_data:
-                if isinstance(job_data["hooks"], dict) and "pre_get_sources_script" in job_data["hooks"]:
-                    logger.debug(f"Processing pre_get_sources_script: {job_name}")
-                    inlined_count += process_job(job_data["hooks"], scripts_root)
-            if "run" in job_data:
-                if isinstance(job_data["run"], list):
-                    for item in job_data["run"]:
-                        if isinstance(item, dict) and "script" in item:
-                            logger.debug(f"Processing run/script: {job_name}")
-                            inlined_count += process_job(item, scripts_root)
+        for job_name, job_data in data.items():
+            if job_name in [
+                "stages",
+                "variables",
+                "include",
+                "rules",
+                "image",
+                "services",
+                "cache",
+                "true",
+                "false",
+                "nil",
+            ]:
+                continue
+            if hasattr(job_data, "tag") and job_data.tag.value:
+                continue
+            if hasattr(job_data, "anchor") and job_data.anchor.value:
+                if not has_must_inline_pragma(job_data):
+                    continue
+
+            if isinstance(job_data, list):
+                logger.debug(f"Processing top-level list key '{job_name}', potentially a script anchor.")
+                result = process_script_list(job_data, scripts_root, collapse_lists=False)
+                if result != job_data:
+                    data[job_name] = result
+                    inlined_count += 1
+            elif isinstance(job_data, dict):
+                safe_job_name = job_name.replace(":", "_")
+                job_vars_filename = f"{safe_job_name}_variables.sh"
+                job_vars_path = input_dir / job_vars_filename
+
+                if job_vars_path.is_file():
+                    logger.debug(f"Found and loading job-specific variables for '{job_name}' from {job_vars_path}")
+                    content = job_vars_path.read_text(encoding="utf-8")
+                    job_specific_vars = parse_env_file(content)
+
+                    if job_specific_vars:
+                        existing_job_vars = job_data.get("variables", CommentedMap())
+                        merged_job_vars = CommentedMap(job_specific_vars.items())
+                        merged_job_vars.update(existing_job_vars)
+                        job_data["variables"] = merged_job_vars
+                        inlined_count += 1
+
+                if (
+                    "script" in job_data
+                    or "before_script" in job_data
+                    or "after_script" in job_data
+                    or "pre_get_sources_script" in job_data
+                ):
+                    logger.debug(f"Processing job: {job_name}")
+                    inlined_count += process_job(job_data, scripts_root)
+                if "hooks" in job_data:
+                    if isinstance(job_data["hooks"], dict) and "pre_get_sources_script" in job_data["hooks"]:
+                        logger.debug(f"Processing pre_get_sources_script: {job_name}")
+                        inlined_count += process_job(job_data["hooks"], scripts_root)
+                if "run" in job_data:
+                    if isinstance(job_data["run"], list):
+                        for item in job_data["run"]:
+                            if isinstance(item, dict) and "script" in item:
+                                logger.debug(f"Processing run/script: {job_name}")
+                                inlined_count += process_job(item, scripts_root)
 
     out_stream = io.StringIO()
-    yaml.dump(data, out_stream)  # Dump the reordered data
+    yaml.dump(data, out_stream)
 
     return inlined_count, out_stream.getvalue()
 
@@ -434,6 +463,7 @@ def write_yaml_and_hash(
     output_file: Path,
     new_content: str,
     hash_file: Path,
+    target: BaseTarget | None = None,
 ):
     """Writes the YAML content and a base64 encoded version to a .hash file.
 
@@ -444,8 +474,11 @@ def write_yaml_and_hash(
 
     new_content = remove_leading_blank_lines(new_content)
 
-    validator = GitLabCIValidator()
-    ok, problems = validator.validate_ci_config(new_content)
+    if target is not None:
+        ok, problems = target.validate(new_content)
+    else:
+        validator = GitLabCIValidator()
+        ok, problems = validator.validate_ci_config(new_content)
     if not ok:
         raise ValidationFailed(problems)
     output_file.write_text(new_content, encoding="utf-8")
@@ -457,7 +490,9 @@ def write_yaml_and_hash(
     logger.debug(f"Updated hash file: {short_path(hash_file)}")
 
 
-def write_compiled_file(output_file: Path, new_content: str, output_base: Path, dry_run: bool = False) -> bool:
+def write_compiled_file(
+    output_file: Path, new_content: str, output_base: Path, dry_run: bool = False, target: BaseTarget | None = None
+) -> bool:
     """
     Writes a compiled file safely. If the destination file was manually edited in a meaningful way
     (i.e., the YAML data structure changed), it aborts with a descriptive error and a diff.
@@ -494,7 +529,7 @@ def write_compiled_file(output_file: Path, new_content: str, output_base: Path, 
 
     if not output_file.exists():
         logger.info(f"Output file {short_path(output_file)} does not exist. Creating.")
-        write_yaml_and_hash(output_file, new_content, hash_file)
+        write_yaml_and_hash(output_file, new_content, hash_file, target=target)
         return True
 
     # --- File exists, find its hash file (old or new location) ---
@@ -573,7 +608,7 @@ def write_compiled_file(output_file: Path, new_content: str, output_base: Path, 
         )
         logger.debug(diff_text)
 
-        write_yaml_and_hash(output_file, new_content, hash_file)
+        write_yaml_and_hash(output_file, new_content, hash_file, target=target)
         return True
 
     logger.debug("Content of %s is already up to date. Skipping.", short_path(output_file))
@@ -589,6 +624,7 @@ def compile_single_file(
     dry_run: bool,
     inferred_cli_command: str,
     output_base: Path,
+    target: BaseTarget | None = None,
 ) -> tuple[int, int]:
     """Compile a single YAML file and write the result.
 
@@ -596,9 +632,9 @@ def compile_single_file(
     """
     logger.debug(f"Processing template: {short_path(source_path)}")
     raw_text = source_path.read_text(encoding="utf-8")
-    inlined_for_file, compiled_text = inline_gitlab_scripts(raw_text, scripts_path, variables, input_dir)
+    inlined_for_file, compiled_text = inline_gitlab_scripts(raw_text, scripts_path, variables, input_dir, target=target)
     final_content = (get_banner(inferred_cli_command) + compiled_text) if inlined_for_file > 0 else raw_text
-    written = write_compiled_file(output_file, final_content, output_base, dry_run)
+    written = write_compiled_file(output_file, final_content, output_base, dry_run, target=target)
     return inlined_for_file, int(written)
 
 
@@ -608,17 +644,19 @@ def run_compile_all(
     dry_run: bool = False,
     parallelism: int | None = None,
     force: bool = False,
+    target: BaseTarget | None = None,
 ) -> int:
     """
-    Main function to process a directory of uncompiled GitLab CI files.
+    Main function to process a directory of uncompiled CI files.
     This version safely writes files by checking hashes to avoid overwriting manual changes.
 
     Args:
-        input_dir (Path): Path to the input .gitlab-ci.yml, other yaml and bash files.
-        output_path (Path): Path to write the .gitlab-ci.yml file and other yaml.
+        input_dir (Path): Path to the input YAML and script files.
+        output_path (Path): Path to write the compiled YAML files.
         dry_run (bool): If True, simulate the process without writing any files.
         parallelism (int | None): Maximum number of processes to use for parallel compilation.
-        force (bool): If True, compile even if it appears to not be need because nothing changed.
+        force (bool): If True, compile even if it appears to not be needed because nothing changed.
+        target (BaseTarget | None): CI/CD platform target adapter. If None, uses legacy GitLab logic.
 
     Returns:
         The total number of inlined sections across all files.
@@ -672,9 +710,15 @@ def run_compile_all(
 
     if total_files >= 5 and max_workers > 1 and parallelism:
         # prime the cache or we get n schema downloads and n attempts to save it to disk
-        validator = GitLabCIValidator()
-        validator.get_schema()
+        if target is not None:
+            target.validate("")  # warm up schema cache
+        else:
+            validator = GitLabCIValidator()
+            validator.get_schema()
 
+        # NOTE: target is not passed in parallel mode because BaseTarget
+        # instances may not be pickle-safe.  The workers fall back to the
+        # legacy GitLab path which is fine for now (only GitLab target exists).
         args_list = [
             (src, out, input_dir, variables, input_dir, dry_run, inferred_cli_command, output_path)
             for src, out, variables in files_to_process
@@ -686,7 +730,7 @@ def run_compile_all(
     else:
         for src, out, variables in files_to_process:
             inlined_for_file, wrote = compile_single_file(
-                src, out, input_dir, variables, input_dir, dry_run, inferred_cli_command, output_path
+                src, out, input_dir, variables, input_dir, dry_run, inferred_cli_command, output_path, target=target
             )
             total_inlined_count += inlined_for_file
             written_files_count += wrote

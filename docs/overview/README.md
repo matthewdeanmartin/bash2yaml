@@ -1,11 +1,13 @@
 # bash2yaml
 
-> Compile pure Bash scripts into your `.gitlab-ci.yml`. Get IDE support for your scripts while keeping them
-> centralized.
+> Compile pure Bash scripts into your CI/CD YAML. Get IDE support for your scripts while keeping them centralized.
 
 Tired of writing Bash inside YAML strings with no syntax highlighting, linting, or testing? `bash2yaml` lets you
-develop your CI logic in `.sh` files and then compiles them into your GitLab CI configuration, giving you the
+develop your CI logic in `.sh` files and then compiles them into your CI/CD configuration, giving you the
 best of both worlds.
+
+**Supported targets:** GitLab CI (`.gitlab-ci.yml`) and GitHub Actions (`.github/workflows/*.yml`), with more planned
+(CircleCI, AWS CodeBuild, Bitbucket Pipelines, Semaphore).
 
 Bash in YAML is Bash without quality gates. Also, includes support for inlining a large number of scripts from other
 language, from Python to PHP.
@@ -135,10 +137,10 @@ Run with
 
 ### Core Compile/Decompile
 
-| Command     | Description                                                                |
-|:------------|:---------------------------------------------------------------------------|
-| `compile`   | Compiles source YAML and `.sh` files into a final `.gitlab-ci.yml`.        |
-| `decompile` | Extracts inline scripts from a `.gitlab-ci.yml` into separate `.sh` files. |
+| Command     | Description                                                                     |
+|:------------|:--------------------------------------------------------------------------------|
+| `compile`   | Compiles source YAML and `.sh` files into final CI/CD YAML for your target.     |
+| `decompile` | Extracts inline scripts from CI/CD YAML into separate `.sh` files.              |
 
 ### Debugging from remote repo
 

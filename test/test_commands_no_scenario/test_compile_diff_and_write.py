@@ -28,7 +28,7 @@ def _identity(s: str) -> str:
     return s
 
 
-def _write_yaml_and_hash(dest: Path, content: str, hash_file: Path) -> None:
+def _write_yaml_and_hash(dest: Path, content: str, hash_file: Path, target=None) -> None:
     """Minimal stand-in for your write_yaml_and_hash()."""
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(content, encoding="utf-8")

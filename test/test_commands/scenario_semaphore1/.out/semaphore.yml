@@ -1,0 +1,67 @@
+# DO NOT EDIT
+# This is a compiled file, compiled with bash2yaml
+# Recompile instead of editing this file.
+#
+# Compiled with the command: 
+#     bash2yaml compile --in test\test_commands\scenario_semaphore1\uncompiled --out test\test_commands\scenario_semaphore1\.out
+
+version: v1.0
+name: CI Pipeline
+agent:
+  machine:
+    type: e1-standard-2
+    os_image: ubuntu2004
+
+blocks:
+- name: Build
+  task:
+    env_vars:
+    - name: NODE_ENV
+      value: ci
+    prologue:
+      commands:
+      - |-
+        # >>> BEGIN inline: scripts/setup.sh
+        set -euo pipefail
+
+        echo "Setting up environment..."
+        nvm install --lts
+        npm install -g npm@latest
+        echo "Setup complete."
+        # <<< END inline
+    jobs:
+    - name: Build App
+      commands:
+      - |-
+        # >>> BEGIN inline: scripts/build.sh
+        set -euo pipefail
+
+        echo "Building application..."
+        npm ci
+        npm run build
+        echo "Build complete."
+        # <<< END inline
+- name: Test
+  task:
+    jobs:
+    - name: Unit Tests
+      commands:
+      - |-
+        # >>> BEGIN inline: scripts/test.sh
+        set -euo pipefail
+
+        echo "Running unit tests..."
+        npm test
+        echo "Tests complete."
+        # <<< END inline
+    epilogue:
+      always:
+        commands:
+        - |-
+          # >>> BEGIN inline: scripts/cleanup.sh
+          set -euo pipefail
+
+          echo "Cleaning up..."
+          rm -rf tmp/ .cache/
+          echo "Cleanup done."
+          # <<< END inline

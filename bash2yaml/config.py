@@ -224,6 +224,12 @@ class Config:
         """Custom header to inject at top of compiled files."""
         return self.get_str("custom_header")
 
+    # --- Target ---
+    @property
+    def target(self) -> str | None:
+        """CI/CD platform target (e.g. gitlab, github, circleci)."""
+        return self.get_str("target")
+
     # --- Custom Shebangs ---
     @property
     def custom_shebangs(self) -> dict[str, str] | None:

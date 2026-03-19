@@ -2,14 +2,15 @@
 
 ## You have a lot of bash in YAML
 
-If your `script:` stanzas top out at a single line of bash, you don't need this. Use the minimum-lines setting in
-decompile to avoid extracting one and two lines of bash to a file.
+If your `script:` stanzas (GitLab) or `run:` blocks (GitHub Actions) top out at a single line of bash, you don't need
+this. Use the minimum-lines setting in decompile to avoid extracting one and two lines of bash to a file.
 
-## You have centralized your gitlab templates
+## You have centralized your CI/CD templates
 
 If you have only one repo, you can reference bash in a `./script.sh` file already. The problem happens only when
-you need to put a lot of bash into YAML and then `include:` that template from a remote repo. When you do that, you
-can't reference a `./script.sh` file, as its location is resolved relative to where the pipeline is running.
+you need to put a lot of bash into YAML and then share that configuration across repos. For GitLab, that means
+`include:` from a remote repo where `./script.sh` resolves relative to the pipeline, not the template. For GitHub
+Actions, reusable workflows are single YAML files that can accumulate complex inline scripts.
 
 Gitlab, if you're listening, you could possibly solve some of the problem with
 

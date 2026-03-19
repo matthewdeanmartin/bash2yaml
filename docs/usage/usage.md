@@ -1,7 +1,10 @@
 # bash2yaml – Usage
 
-This guide shows how to use **bash2yaml** to move shell logic out of `.gitlab-ci.yml`, work locally with real shell
-files, and compile back to clean CI YAML.
+This guide shows how to use **bash2yaml** to move shell logic out of your CI/CD YAML (GitLab CI, GitHub Actions, etc.),
+work locally with real shell files, and compile back to clean CI YAML.
+
+bash2yaml supports multiple CI/CD platforms via its `--target` flag. See [Supported Targets](../targets/supported_targets.md)
+for the full list. If you don't specify a target, bash2yaml will try to auto-detect it, falling back to GitLab CI.
 
 ---
 
@@ -108,8 +111,8 @@ bash2yaml decompile \
 
 #### Behavior
 
-* Finds `script:` blocks in YAML and writes them to `*.sh` files.
-* Replaces the YAML `script:` with a shell call (e.g., `- ./scripts/jobname.sh`).
+* Finds script blocks in YAML (`script:` for GitLab, `run:` for GitHub Actions) and writes them to `*.sh` files.
+* Replaces inline scripts with shell calls (e.g., `- ./scripts/jobname.sh` or `run: ./scripts/build.sh`).
 * Preserves job structure; doesn’t attempt YAML merging.
 
 ---
@@ -151,7 +154,8 @@ Prompts you with questions and then creates a toml config.
 
 **What triggers inlining**
 
-* YAML `script:` entries that **invoke a single shell file** (e.g., `./scripts/build.sh`).
+* YAML entries that **invoke a single shell file** — `script:` lines for GitLab, `run:` values for GitHub Actions
+  (e.g., `./scripts/build.sh`).
 * Inside a script, lines matching `source <path>` or `. <path>` are **recursively inlined** up to a safe depth.
 
 **Path resolution**
@@ -174,7 +178,8 @@ Prompts you with questions and then creates a toml config.
 
 ## File conventions
 
-* `global_variables.sh` (optional): lines of `KEY=VALUE` (no spaces around `=`); will be inlined into YAML `variables:`.
+* `global_variables.sh` (optional): lines of `KEY=VALUE` (no spaces around `=`); will be inlined into the
+  platform-appropriate YAML key (`variables:` for GitLab, `env:` for GitHub Actions).
 
 **Example**
 
@@ -185,8 +190,13 @@ DEPLOY_ENV=staging
 ```
 
 ```yaml
-# Result snippet in compiled YAML
+# Result snippet in compiled GitLab YAML
 variables:
+  IMAGE_TAG: "latest"
+  DEPLOY_ENV: "staging"
+
+# Result snippet in compiled GitHub Actions YAML
+env:
   IMAGE_TAG: "latest"
   DEPLOY_ENV: "staging"
 ```

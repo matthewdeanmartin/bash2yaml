@@ -1,0 +1,55 @@
+# DO NOT EDIT
+# This is a compiled file, compiled with bash2yaml
+# Recompile instead of editing this file.
+#
+# Compiled with the command: 
+#     bash2yaml compile --in test\test_commands\scenario_bitbucket1\uncompiled --out test\test_commands\scenario_bitbucket1\.out
+
+image: atlassian/default-image:4
+
+pipelines:
+  default:
+  - step:
+      name: Build
+      script:
+      - |-
+        # >>> BEGIN inline: scripts/build.sh
+        set -euo pipefail
+
+        echo "Building..."
+        npm run build
+        echo "Build complete."
+        # <<< END inline
+      after-script:
+      - |-
+        # >>> BEGIN inline: scripts/cleanup.sh
+        set -euo pipefail
+
+        echo "Cleaning up..."
+        rm -rf tmp/
+        echo "Cleanup done."
+        # <<< END inline
+  branches:
+    main:
+    - step:
+        name: Deploy to production
+        script:
+        - |-
+          # >>> BEGIN inline: scripts/deploy.sh
+          set -euo pipefail
+
+          echo "Deploying to production..."
+          echo "Deploy complete."
+          # <<< END inline
+  custom:
+    run-tests:
+    - step:
+        name: Run tests
+        script:
+        - |-
+          # >>> BEGIN inline: scripts/test.sh
+          set -euo pipefail
+
+          echo "Running tests..."
+          echo "Tests complete."
+          # <<< END inline

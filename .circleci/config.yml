@@ -1,0 +1,133 @@
+# DO NOT EDIT
+# This is a compiled file, compiled with bash2yaml
+# Recompile instead of editing this file.
+#
+# Compiled with the command: 
+#     bash2yaml compile --in .circleci\uncompiled --out C:\Users\matth\AppData\Local\Temp\circleci_out
+
+version: 2.1
+
+orbs:
+  python: circleci/python@2
+
+jobs:
+  test:
+    docker:
+    - image: cimg/python:3.12
+    environment:
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+    steps:
+    - checkout
+    - run:
+        name: Install dependencies
+        command: |-
+          # >>> BEGIN inline: scripts/install.sh
+          set -euo pipefail
+
+          echo "Installing dependencies with uv..."
+          pip install uv
+          uv sync --all-extras
+          echo "Dependencies installed."
+          # <<< END inline
+    - run:
+        name: Install test plugins
+        command: |-
+          # >>> BEGIN inline: scripts/install_plugins.sh
+          set -euo pipefail
+
+          echo "Installing test plugins..."
+          uv run pip install -e test/test_commands/plugin_for_test/ --quiet
+          echo "Plugins installed."
+          # <<< END inline
+    - run:
+        name: Run tests
+        command: |-
+          # >>> BEGIN inline: scripts/test.sh
+          set -euo pipefail
+
+          echo "Running tests..."
+          uv run pytest test \
+            -v \
+            -n auto \
+            --tb=short \
+            --cov=bash2yaml \
+            --cov-report=xml \
+            --cov-report=html \
+            --cov-fail-under=48 \
+            --cov-branch \
+            --junitxml=junit.xml \
+            -o junit_family=legacy \
+            --timeout=30 \
+            --session-timeout=600
+          echo "Tests complete."
+          # <<< END inline
+    - run:
+        name: Run lint checks
+        command: |-
+          # >>> BEGIN inline: scripts/lint.sh
+          set -euo pipefail
+
+          echo "Running linting checks..."
+          uv run bash ./scripts/basic_checks.sh
+          echo "Linting complete."
+          # <<< END inline
+    - store_test_results:
+        path: junit.xml
+    - store_artifacts:
+        path: htmlcov
+        destination: coverage-report
+    - store_artifacts:
+        path: coverage.xml
+        destination: coverage.xml
+
+  dogfood:
+    docker:
+    - image: cimg/python:3.12
+    steps:
+    - checkout
+    - run:
+        name: Install dependencies
+        command: |-
+          # >>> BEGIN inline: scripts/install.sh
+          set -euo pipefail
+
+          echo "Installing dependencies with uv..."
+          pip install uv
+          uv sync --all-extras
+          echo "Dependencies installed."
+          # <<< END inline
+    - run:
+        name: Compile CircleCI config with bash2yaml
+        command: |-
+          # >>> BEGIN inline: scripts/dogfood_compile.sh
+          set -euo pipefail
+
+          TMPOUT=$(mktemp -d)
+          trap 'rm -rf "$TMPOUT"' EXIT
+
+          echo "Dogfooding: compiling the CircleCI config with bash2yaml..."
+          uv run bash2yaml compile \
+            --in .circleci/uncompiled \
+            --out "$TMPOUT" \
+            --target circleci
+
+          echo "Dogfood compile complete."
+
+          echo "Verifying the compiled config matches what is checked in..."
+          diff "$TMPOUT/config.yml" .circleci/config.yml || {
+            echo "ERROR: Compiled CircleCI config differs from checked-in version!"
+            echo "Run: uv run bash2yaml compile --in .circleci/uncompiled --out /tmp/b2y_circleci --target circleci"
+            echo "Then copy /tmp/b2y_circleci/config.yml to .circleci/config.yml and commit."
+            exit 1
+          }
+          echo "Dogfood verification passed: .circleci/config.yml is up to date."
+          # <<< END inline
+
+
+workflows:
+  ci:
+    jobs:
+    - test
+    - dogfood:
+        requires:
+        - test

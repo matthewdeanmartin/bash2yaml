@@ -551,7 +551,7 @@ wheels = [
 
 [[package]]
 name = "bash2yaml"
-version = "0.9.10"
+version = "0.11.0"
 source = { editable = "." }
 dependencies = [
     { name = "certifi" },

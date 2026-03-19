@@ -1,0 +1,31 @@
+version: v1.0
+name: CI Pipeline
+agent:
+  machine:
+    type: e1-standard-2
+    os_image: ubuntu2004
+
+blocks:
+  - name: Build
+    task:
+      env_vars:
+        - name: NODE_ENV
+          value: ci
+      prologue:
+        commands:
+          - ./scripts/setup.sh
+      jobs:
+        - name: Build App
+          commands:
+            - ./scripts/build.sh
+
+  - name: Test
+    task:
+      jobs:
+        - name: Unit Tests
+          commands:
+            - ./scripts/test.sh
+      epilogue:
+        always:
+          commands:
+            - ./scripts/cleanup.sh

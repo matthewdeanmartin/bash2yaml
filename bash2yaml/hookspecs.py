@@ -38,6 +38,15 @@ def watch_file_extensions() -> Iterable[str]:
 
 
 @hookspec
+def register_targets() -> None:
+    """Register custom target adapters.
+
+    Implementations should call ``bash2yaml.targets.register_target(my_target)``
+    for each custom target they want to make available.
+    """
+
+
+@hookspec
 def register_cli(subparsers, config) -> None: ...
 
 

@@ -1,0 +1,53 @@
+version: 2.1
+
+orbs:
+  python: circleci/python@2
+
+jobs:
+  test:
+    docker:
+      - image: cimg/python:3.12
+    environment:
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies
+          command: ./scripts/install.sh
+      - run:
+          name: Install test plugins
+          command: ./scripts/install_plugins.sh
+      - run:
+          name: Run tests
+          command: ./scripts/test.sh
+      - run:
+          name: Run lint checks
+          command: ./scripts/lint.sh
+      - store_test_results:
+          path: junit.xml
+      - store_artifacts:
+          path: htmlcov
+          destination: coverage-report
+      - store_artifacts:
+          path: coverage.xml
+          destination: coverage.xml
+
+  dogfood:
+    docker:
+      - image: cimg/python:3.12
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies
+          command: ./scripts/install.sh
+      - run:
+          name: Compile CircleCI config with bash2yaml
+          command: ./scripts/dogfood_compile.sh
+
+workflows:
+  ci:
+    jobs:
+      - test
+      - dogfood:
+          requires:
+            - test

@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CircleCI Configuration",
+  "description": "Schema for CircleCI config.yml",
+  "type": "object",
+  "required": ["version"],
+  "properties": {
+    "version": {
+      "type": "number",
+      "description": "CircleCI config version",
+      "enum": [2, 2.1]
+    },
+    "orbs": {
+      "type": "object",
+      "description": "Orbs to use in this configuration"
+    },
+    "executors": {
+      "type": "object",
+      "description": "Reusable executor definitions"
+    },
+    "commands": {
+      "type": "object",
+      "description": "Reusable command definitions"
+    },
+    "parameters": {
+      "type": "object",
+      "description": "Pipeline parameters"
+    },
+    "jobs": {
+      "type": "object",
+      "description": "Job definitions",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "docker": {"type": "array"},
+          "machine": {"type": ["object", "boolean"]},
+          "macos": {"type": "object"},
+          "executor": {"type": ["string", "object"]},
+          "environment": {"type": "object"},
+          "working_directory": {"type": "string"},
+          "parallelism": {"type": "integer"},
+          "steps": {
+            "type": "array",
+            "description": "Steps to run in this job"
+          }
+        }
+      }
+    },
+    "workflows": {
+      "type": "object",
+      "description": "Workflow definitions"
+    }
+  }
+}

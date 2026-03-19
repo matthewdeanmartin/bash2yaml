@@ -22,6 +22,8 @@ def get_pm() -> pluggy.PluginManager:
         # Third-party:
         if not os.environ.get("BASH2YAML_NO_PLUGINS"):
             _pm.load_setuptools_entrypoints("bash2yaml")
+        # Let plugins register custom target adapters
+        _pm.hook.register_targets()
     return _pm
 
 

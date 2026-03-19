@@ -1,0 +1,24 @@
+image: atlassian/default-image:4
+
+pipelines:
+  default:
+    - step:
+        name: Build
+        script:
+          - ./scripts/build.sh
+        after-script:
+          - ./scripts/cleanup.sh
+
+  branches:
+    main:
+      - step:
+          name: Deploy to production
+          script:
+            - ./scripts/deploy.sh
+
+  custom:
+    run-tests:
+      - step:
+          name: Run tests
+          script:
+            - ./scripts/test.sh

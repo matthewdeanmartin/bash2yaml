@@ -1,0 +1,35 @@
+version: 2.1
+
+orbs:
+  node: circleci/node@5
+
+jobs:
+  install:
+    docker:
+      - image: cimg/node:20.0
+    environment:
+      NODE_ENV: ci
+    steps:
+      - checkout
+      - node/install-packages
+      - run:
+          name: Install dependencies
+          command: ./scripts/install.sh
+
+  build:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - checkout
+      - run: ./scripts/build.sh
+      - run:
+          name: Verify build
+          command: ./scripts/verify.sh
+
+workflows:
+  main:
+    jobs:
+      - install
+      - build:
+          requires:
+            - install

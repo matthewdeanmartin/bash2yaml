@@ -84,6 +84,7 @@ from bash2yaml.errors.exceptions import Bash2YamlError, CompilationNeeded, Netwo
 from bash2yaml.errors.exit_codes import ExitCode, resolve_exit_code
 from bash2yaml.install_help import print_install_help
 from bash2yaml.plugins import get_pm
+from bash2yaml.targets import list_targets, resolve_target
 from bash2yaml.utils.cli_suggestions import SmartParser
 from bash2yaml.utils.logging_config import generate_config
 
@@ -309,14 +310,17 @@ def compile_handler(args: argparse.Namespace) -> int:
         )
         return 0
 
+    target = getattr(args, "resolved_target", None)
     result = run_compile_all(
         input_dir=in_dir,
         output_path=out_dir,
         dry_run=dry_run,
         parallelism=parallelism,
         force=force,
+        target=target,
     )
-    logger.info("✅ GitLab CI processing complete.")
+    target_name = target.display_name if target else "GitLab CI"
+    logger.info("✅ %s processing complete.", target_name)
     return result
 
 
@@ -329,13 +333,16 @@ def validate_handler(args: argparse.Namespace) -> int:
     out_dir = Path(args.output_dir).resolve()
     parallelism = args.parallelism
 
+    target = getattr(args, "resolved_target", None)
     result = run_validate_all(
         input_dir=in_dir,
         _output_path=out_dir,
         parallelism=parallelism,
+        target=target,
     )
 
-    logger.info("✅ GitLab CI validating complete.")
+    target_name = target.display_name if target else "GitLab CI"
+    logger.info("✅ %s validation complete.", target_name)
     return result
 
 
@@ -352,12 +359,14 @@ def decompile_handler(args: argparse.Namespace) -> int:
     out_dir.mkdir(parents=True, exist_ok=True)  # force folder semantics
 
     dry_run = bool(args.dry_run)
+    target = getattr(args, "resolved_target", None)
 
     if args.input_file:
         jobs, scripts, out_yaml = run_decompile_gitlab_file(
             input_yaml_path=Path(args.input_file).resolve(),
             output_dir=out_dir,
             dry_run=dry_run,
+            target=target,
         )
         if dry_run:
             logger.info("DRY RUN: Would have processed %s jobs and created %s script(s).", jobs, scripts)
@@ -369,6 +378,7 @@ def decompile_handler(args: argparse.Namespace) -> int:
             input_root=Path(args.input_folder).resolve(),
             output_dir=out_dir,
             dry_run=dry_run,
+            target=target,
         )
         if dry_run:
             logger.info(
@@ -497,6 +507,17 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("-q", "--quiet", action="store_true", help="Disable output.")
 
 
+def add_target_argument(parser: argparse.ArgumentParser) -> None:
+    """Add the --target flag to a subparser."""
+    parser.add_argument(
+        "--target",
+        dest="target",
+        default=None,
+        choices=list_targets(),
+        help="CI/CD platform target (e.g. gitlab, github). Auto-detected if omitted.",
+    )
+
+
 def add_autogit_argument(parser: argparse.ArgumentParser) -> None:
     """Adds the --autogit flag to a parser."""
     parser.add_argument(
@@ -591,6 +612,7 @@ def main() -> int:
     )
     add_common_arguments(compile_parser)
     add_autogit_argument(compile_parser)
+    add_target_argument(compile_parser)
     compile_parser.set_defaults(func=compile_handler)
 
     # Clean Parser
@@ -641,6 +663,7 @@ def main() -> int:
 
     add_common_arguments(decompile_parser)
     add_autogit_argument(decompile_parser)
+    add_target_argument(decompile_parser)
 
     decompile_parser.set_defaults(func=decompile_handler)
 
@@ -1038,6 +1061,7 @@ def main() -> int:
         help="Number of files to validate in parallel (default: CPU count).",
     )
     add_common_arguments(validate_parser)
+    add_target_argument(validate_parser)
     validate_parser.set_defaults(func=validate_handler)
 
     # --- Autogit Command ---
@@ -1120,6 +1144,21 @@ def main() -> int:
         if not args.input_dir:
             lint_parser.error("argument --in is required")
     # install-precommit / uninstall-precommit / doctor / graph / show-config / autogit do not merge config
+
+    # Resolve target for target-aware commands
+    if hasattr(args, "target"):
+        input_filename = None
+        input_directory = None
+        if hasattr(args, "input_dir") and args.input_dir:
+            input_directory = Path(args.input_dir)
+        if hasattr(args, "input_file") and args.input_file:
+            input_filename = Path(args.input_file).name
+        args.resolved_target = resolve_target(
+            cli_target=args.target,
+            config_target=config.target,
+            filename=input_filename,
+            directory=input_directory,
+        )
 
     # Merge boolean flags
     args.verbose = getattr(args, "verbose", False) or config.verbose or False

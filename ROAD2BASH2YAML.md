@@ -78,23 +78,11 @@ The CLI gets a `--target` flag (or the target is auto-detected from the input fi
 
 ## Migration Plan
 
-### Phase 0 — Rename & Restructure (No New Features)
+### Phase 0 — Rename & Restructure (No New Features) - DONE!! only
 
-**This phase must be complete and all tests passing before any other phase begins.**
+- rename is done. used to be called bash2gitlab.
 
-1. Rename internal module from `bash2yaml/` to `bash2yaml/`
-2. Rename config file from `bash2yaml.toml` → `bash2yaml.toml` (with backwards-compatible fallback for a few versions)
-3. Rename env var prefix `bash2yaml_` → `BASH2YAML_` (with backwards-compatible fallback for a few versions)
-4. Update CLI entry points: `bash2yaml` / `b2y` (keep `b2gl` as a deprecated alias for a few versions)
-5. Keep `bash2yaml` as a separate thin wrapper package on PyPI that depends on `bash2yaml` and re-exports everything —
-   maintained for a few versions then deprecated
-6. Write additional unit tests to improve coverage of existing behavior before the rename, so regressions are caught
-   during the rename itself
-7. All tests pass, no behavior changes
-
-**Gate: Do not start Phase 1 until Phase 0 is complete with green tests.**
-
-### Phase 1 — Target Abstraction
+### Phase 1 — Target Abstraction — DONE
 
 1. Define `BaseTarget` interface with methods:
     - `script_key_paths(doc) → list[tuple]` — yield (job_name, script_section, list_of_lines) for all scriptable
@@ -109,7 +97,7 @@ The CLI gets a `--target` flag (or the target is auto-detected from the input fi
 5. Add auto-detection: sniff input filename or directory structure to pick default target
 6. All existing behavior preserved via `GitLabTarget`
 
-### Phase 2 — GitHub Actions Target
+### Phase 2 — GitHub Actions Target — DONE
 
 **Structural differences from GitLab:**
 
@@ -276,7 +264,7 @@ needed.
 
 ---
 
-## Open Questions
+## Questions... all answered.
 
 **11. Auto-detection of target from input file**
 When the user doesn't specify `--target`, the tool should sniff the input filename/directory to pick a target (e.g.
@@ -284,15 +272,21 @@ When the user doesn't specify `--target`, the tool should sniff the input filena
 non-standard name? Should it fail loudly and demand `--target`, or fall back to GitLab as the default (preserving
 existing behaviour)?
 
+yeah, if the input is clearly gitlab, then autodetect target.
+
 **12. The `init` command per platform**
 Currently `init` scaffolds a new bash2yaml project. Each platform needs a different directory layout. Should
 `init --target github` produce the correct scaffold for that platform, or should `init` stay GitLab-only until after all
 targets are implemented?
 
+init should require a target or for target to be set in config.
+
 **13. Compiled file header**
 The output file currently gets a `# DO NOT EDIT — compiled with bash2yaml` header. For bash2yaml the header needs to
 name the tool correctly. Should there be a `# target: github` line in the header too, so the tool can auto-detect the
 target on subsequent runs by reading its own output? Or is that too clever?
+
+Yup, all names are bash2yaml not bash2gitlab. Maybe the target should be optional to handle cases where otherwise the tool would need to guess.
 
 **14. Inline begin/end markers**
 GitLab output currently uses `# >>> BEGIN inline: path/to/script` / `# <<< END inline` comment markers. These work
@@ -300,11 +294,15 @@ because GitLab script sections are YAML arrays of strings. For GitHub's `run: |`
 would become literal lines in the shell script — which is fine, but do you still want them? Or is a simpler marker (e.g.
 just the shebang line) enough?
 
+I see what you mean -- It is fine for that to be inlined either in the yaml or the bash.
+
 **15. The `decompile` command for GitHub**
 Decompile reverses compilation: it reads `# >>> BEGIN inline` markers to split scripts back out. For GitHub, the entire
 `run:` block would become one `.sh` file. The step `name:` would have to be used to derive the filename. Is `name:`
 always present and clean enough to use as a filename slug, or do we need a different convention (e.g. a comment near the
 `run:` key in the uncompiled source)?
+
+good point, we need to be defensive about bad names. Roundtripping is a goal, but not a must have. Make best efforts.
 
 **16. Scripts that span multiple steps (GitHub Actions)**
 In GitLab you have one `script:` list per job. In GitHub Actions a job has many `steps:`, each potentially with its own
@@ -312,11 +310,15 @@ In GitLab you have one `script:` list per job. In GitHub Actions a job has many 
 `env:` at the **job** level (affecting all steps), or at each individual **step** level? And is there a per-step
 variable file convention needed (e.g. `stepname_variables.sh`)?
 
+oh, I don't know, suggest something.
+
 **17. Uncompiled source location convention for GitHub**
 For GitLab, `input_dir` contains the uncompiled `.gitlab-ci.yml` and a `scripts/` subdirectory. For GitHub, you'd have
 multiple workflow files. Should the uncompiled sources live alongside the workflows (e.g. `.github/workflows/src/`) or
 in a completely separate top-level directory (e.g. `ci/github/`)? This affects how `copy2local` and `map-deploy` work
 for GitHub users.
+
+uh, yes... I see what you mean. Yes we'd have to ask for a file or folder for github.
 
 **18. Pragma system portability**
 The current pragma system (`# Pragma: do-not-inline`, `# Pragma: allow-outside-root`) lives in bash comments. Since
@@ -324,21 +326,27 @@ script inlining is platform-agnostic, pragmas work for all platforms. But the pr
 YAML comment character. Is there any concern about pragmas appearing in raw YAML (not inside script lines) being
 misinterpreted, or is this a non-issue because pragmas only appear inside script content?
 
+No, we won't worry about # meaning comment in both bash and yaml.
+
 **19. Test strategy for new targets**
 The current test suite tests against real GitLab CI YAML fixtures. For new platforms: should each target have its own
 fixture-based integration tests (a complete uncompiled + expected-compiled pair per platform), or is unit-testing the
 target's `script_key_paths()` / `variables_key_paths()` methods in isolation sufficient? Related: should the fixtures
 live in `test/fixtures/github/`, `test/fixtures/circleci/`, etc.?
 
+Yess... support tests split up by folders for different tarets.
+
 **20. `pyproject.toml` tool section name**
 Currently config can live in `pyproject.toml` under `[tool.bash2yaml]`. After the rename this becomes
 `[tool.bash2yaml]`. Should the backwards-compat fallback also read `[tool.bash2yaml]` for a few versions, or is
 `pyproject.toml` considered too "permanent" to carry a stale section name and users should migrate it?
 
-**21. Version numbering after rename**
-Does bash2yaml start at `1.0.0` (clean break, signals new tool), continue from wherever bash2yaml left off (
-continuity), or something else?
+No... we switch over nw.
 
+--- Answered 
+
+**21. Version numbering after rename**
+bash2yaml starts at `0.11.0` 
 ---
 
 ## Decisions Made

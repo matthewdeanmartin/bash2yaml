@@ -13,11 +13,11 @@ __all__ = [
 ]
 
 __title__ = "bash2yaml"
-__version__ = "0.9.10"
-__description__ = "Compile bash to gitlab pipeline yaml"
+__version__ = "0.11.0"
+__description__ = "Compile bash to pipeline yaml- Gitlab, GitHub and more"
 __readme__ = "README.md"
 __credits__ = [{"name": "Matthew Martin", "email": "matthewdeanmartin@gmail.com"}]
-__keywords__ = ["bash", "gitlab"]
+__keywords__ = ["bash", "gitlab", "github"]
 __license__ = "MIT"
 __requires_python__ = ">=3.8"
 __status__ = "5 - Production/Stable"

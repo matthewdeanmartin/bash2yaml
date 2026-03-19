@@ -1,7 +1,7 @@
 site_name: "bash2yaml"
 site_url: "https://bash2yaml.readthedocs.io/"
 site_author: "Matthew Dean Martin <matthewdeanmartin@gmail.com>"
-site_description: "Documentation of bash2yaml, a tool for compiling bash to .gitlab-ci.yml"
+site_description: "Documentation of bash2yaml, a tool for compiling bash into CI/CD YAML (GitLab CI, GitHub Actions, and more)"
 
 repo_url: "https://github.com/matthewdeanmartin/bash2yaml"
 
@@ -33,6 +33,9 @@ nav:
       - "Formatting YAML": "quality_gates/formatting.md"
       - "Linting" : "quality_gates/linting.md"
       - "Testing" : "quality_gates/testing.md"
+  - "Targets":
+    - "Supported Targets": "targets/supported_targets.md"
+    - "Adding a New Target": "targets/NEW_TARGET_TASKS.md"
   - "Extending":
     - "Extension points": "extending/extending.md"
     - "API": "extending/API.md"

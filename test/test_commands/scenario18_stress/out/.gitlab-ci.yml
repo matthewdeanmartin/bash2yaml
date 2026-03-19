@@ -3,7 +3,7 @@
 # Recompile instead of editing this file.
 #
 # Compiled with the command: 
-#     bash2yaml compile --in C:\github\bash2gitlab\test\test_commands\scenario18_stress\src --out C:\github\bash2gitlab\test\test_commands\scenario18_stress\out
+#     bash2yaml compile --in C:\github\bash2yaml\test\test_commands\scenario18_stress\src --out C:\github\bash2yaml\test\test_commands\scenario18_stress\out
 
 # Demonstration of YAML features + GitLab CI features
 

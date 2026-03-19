@@ -11,6 +11,7 @@ from typing import Any
 
 import orjson
 
+from bash2yaml.targets.base import BaseTarget
 from bash2yaml.utils.terminal_colors import Colors
 from bash2yaml.utils.validate_pipeline import GitLabCIValidator, ValidationResult, validate_gitlab_ci_yaml
 
@@ -32,18 +33,18 @@ def find_yaml_files(directory: Path) -> list[Path]:
     return sorted(yaml_files)
 
 
-def validate_single_file(file_path: Path) -> ValidationResult:
+def validate_single_file(file_path: Path, target: BaseTarget | None = None) -> ValidationResult:
     """
     Validate a single YAML file.
 
     Args:
         file_path: Path to the YAML file to validate.
+        target: Optional target adapter for platform-specific validation.
 
     Returns:
         ValidationResult containing the validation outcome.
     """
     try:
-        # Double-check that this is actually a file
         if not file_path.exists():
             return ValidationResult(file_path=file_path, is_valid=False, errors=[f"File does not exist: {file_path}"])
 
@@ -51,7 +52,10 @@ def validate_single_file(file_path: Path) -> ValidationResult:
             return ValidationResult(file_path=file_path, is_valid=False, errors=[f"Path is not a file: {file_path}"])
 
         yaml_content = file_path.read_text(encoding="utf-8")
-        is_valid, errors = validate_gitlab_ci_yaml(yaml_content)
+        if target is not None:
+            is_valid, errors = target.validate(yaml_content)
+        else:
+            is_valid, errors = validate_gitlab_ci_yaml(yaml_content)
         return ValidationResult(file_path=file_path, is_valid=is_valid, errors=errors)
     except Exception as e:
         return ValidationResult(file_path=file_path, is_valid=False, errors=[f"Failed to read file: {str(e)}"])
@@ -114,14 +118,16 @@ def run_validate_all(
     input_dir: Path,
     _output_path: Path,
     parallelism: int | None = None,
+    target: BaseTarget | None = None,
 ) -> int:
     """
     Orchestrate the validation of all YAML files in input directory.
 
     Args:
         input_dir: Directory containing YAML files to validate.
-        output_path: Path to write validation results.
+        _output_path: Path to write validation results.
         parallelism: Number of parallel processes (None for auto-detect).
+        target: Which ci syntax
 
     Returns:
         Exit code (0 for success, 1 for validation failures, 2 for errors).
@@ -152,7 +158,7 @@ def run_validate_all(
             results = []
             for yaml_file in yaml_files:
                 print(f"Validating: {yaml_file}")
-                result = validate_single_file(yaml_file)
+                result = validate_single_file(yaml_file, target=target)
                 results.append(result)
         else:
             # prime the cache or we get n schema downloads and n attempts to save it to disk

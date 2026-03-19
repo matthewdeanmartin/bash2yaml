@@ -1,0 +1,33 @@
+version: 0.2
+
+env:
+  variables:
+    NODE_ENV: ci
+    BUILD_OUTPUT: dist
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+    commands:
+      - ./scripts/setup.sh
+
+  pre_build:
+    commands:
+      - ./scripts/pre_build.sh
+
+  build:
+    commands:
+      - ./scripts/build.sh
+    finally:
+      commands:
+        - ./scripts/cleanup.sh
+
+  post_build:
+    commands:
+      - ./scripts/post_build.sh
+
+artifacts:
+  files:
+    - '**/*'
+  base-directory: dist
