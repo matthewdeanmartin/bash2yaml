@@ -3,8 +3,9 @@
 This guide shows how to use **bash2yaml** to move shell logic out of your CI/CD YAML (GitLab CI, GitHub Actions, etc.),
 work locally with real shell files, and compile back to clean CI YAML.
 
-bash2yaml supports multiple CI/CD platforms via its `--target` flag. See [Supported Targets](../targets/supported_targets.md)
-for the full list. If you don't specify a target, bash2yaml will try to auto-detect it, falling back to GitLab CI.
+bash2yaml supports multiple CI/CD platforms via its `--target` flag — GitLab CI, GitHub Actions, CircleCI, AWS
+CodeBuild, Bitbucket Pipelines, and Semaphore CI. See [Supported Targets](../targets/supported_targets.md) for the
+full list. If you don't specify a target, bash2yaml will try to auto-detect it, falling back to GitLab CI.
 
 ---
 
@@ -78,9 +79,11 @@ repo/
 
 #### Behavior
 
-* Resolves `script:` entries like `./scripts/build.sh` and **inlines their contents**.
+* Resolves script entries like `./scripts/build.sh` and **inlines their contents** (the exact YAML key depends on
+  the target — `script:` for GitLab, `run:`/`command:` for GitHub/CircleCI, `commands:` for CodeBuild/Semaphore,
+  etc.).
 * Follows `source`/`.` directives **within scripts** (see *Inlining rules* below).
-* Optionally inlines `global_variables.sh` into YAML `variables:` (see *Conventions*).
+* Optionally inlines `global_variables.sh` into the platform's variables key (see *Conventions*).
 * Strips script shebangs when inlining.
 
 #### Good to know
@@ -111,7 +114,9 @@ bash2yaml decompile \
 
 #### Behavior
 
-* Finds script blocks in YAML (`script:` for GitLab, `run:` for GitHub Actions) and writes them to `*.sh` files.
+* Finds script blocks in YAML (the exact key depends on the target — `script:` for GitLab, `run:` for GitHub
+  Actions, `command:` for CircleCI, `commands:` for CodeBuild/Semaphore/Bitbucket, etc.) and writes them to
+  `*.sh` files.
 * Replaces inline scripts with shell calls (e.g., `- ./scripts/jobname.sh` or `run: ./scripts/build.sh`).
 * Preserves job structure; doesn’t attempt YAML merging.
 
@@ -179,7 +184,16 @@ Prompts you with questions and then creates a toml config.
 ## File conventions
 
 * `global_variables.sh` (optional): lines of `KEY=VALUE` (no spaces around `=`); will be inlined into the
-  platform-appropriate YAML key (`variables:` for GitLab, `env:` for GitHub Actions).
+  platform-appropriate YAML variables key.
+
+| Target             | Variables key      |
+|:-------------------|:-------------------|
+| GitLab CI          | `variables:`       |
+| GitHub Actions     | `env:`             |
+| CircleCI           | `environment:`     |
+| AWS CodeBuild      | `env.variables:`   |
+| Bitbucket Pipelines| *(not supported)*  |
+| Semaphore CI       | *(not supported)*  |
 
 **Example**
 

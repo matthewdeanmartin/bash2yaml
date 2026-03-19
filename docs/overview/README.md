@@ -6,8 +6,8 @@ Tired of writing Bash inside YAML strings with no syntax highlighting, linting, 
 develop your CI logic in `.sh` files and then compiles them into your CI/CD configuration, giving you the
 best of both worlds.
 
-**Supported targets:** GitLab CI (`.gitlab-ci.yml`) and GitHub Actions (`.github/workflows/*.yml`), with more planned
-(CircleCI, AWS CodeBuild, Bitbucket Pipelines, Semaphore).
+**Supported targets:** GitLab CI, GitHub Actions, CircleCI, AWS CodeBuild, Bitbucket Pipelines, and Semaphore CI.
+See [Supported Targets](../targets/supported_targets.md) for details on each platform.
 
 Bash in YAML is Bash without quality gates. Also, includes support for inlining a large number of scripts from other
 language, from Python to PHP.
