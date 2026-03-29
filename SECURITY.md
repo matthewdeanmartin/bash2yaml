@@ -1,4 +1,4 @@
-# Security Policy for `troml-dev-status`
+# Security Policy for `bash2yaml`
 
 ## Introduction
 
@@ -91,10 +91,10 @@ ENV PATH="/home/appuser/venv/bin:$PATH"
 RUN pip install --no-cache-dir .
 
 # Copy the application source code
-COPY --chown=appuser:appuser troml_dev_status/ ./troml_dev_status/
+COPY --chown=appuser:appuser bash2yaml/ ./bash2yaml/
 
 # Set the entrypoint to run the tool
-ENTRYPOINT ["troml-dev-status"]
+ENTRYPOINT ["bash2yaml"]
 CMD ["--help"]
 ```
 
@@ -102,11 +102,11 @@ CMD ["--help"]
 
 ```bash
 # Build the image
-docker build -t troml-dev-status .
+docker build -t bash2yaml .
 
 # Run the tool against a local repository mounted into the container
 # This command mounts your current directory into /data inside the container
-docker run --rm -v "$(pwd):/data" troml-dev-status /data
+docker run --rm -v "$(pwd):/data" bash2yaml /data
 ```
 
 This approach ensures the tool only has access to the repository you explicitly provide and cannot interfere with other

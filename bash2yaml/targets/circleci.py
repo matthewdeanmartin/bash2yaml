@@ -212,6 +212,8 @@ class CircleCITarget(BaseTarget):
     def matches_filename(self, filename: str) -> bool:
         # CircleCI config is always ``config.yml`` inside ``.circleci/``,
         # but the filename alone is ambiguous — rely on directory detection.
+        # Keep the hook-style parameter name intact for plugin compatibility.
+        _ = filename
         return False
 
     def matches_directory(self, path: Path) -> bool:

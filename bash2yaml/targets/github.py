@@ -225,6 +225,8 @@ class GitHubTarget(BaseTarget):
     def matches_filename(self, filename: str) -> bool:
         # GitHub workflows don't have a single canonical filename,
         # but they live in .github/workflows/
+        # Keep the hook-style parameter name intact for plugin compatibility.
+        _ = filename
         return False
 
     def matches_directory(self, path: Path) -> bool:

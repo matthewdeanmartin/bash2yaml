@@ -230,10 +230,12 @@ class GitLabTarget(BaseTarget):
 
     def matches_filename(self, filename: str) -> bool:
         lower = filename.lower()
-        return lower == ".gitlab-ci.yml" or lower == ".gitlab-ci.yaml"
+        return lower in (".gitlab-ci.yml", ".gitlab-ci.yaml")
 
     def matches_directory(self, path: Path) -> bool:
         """GitLab CI uses a single file, not a directory convention."""
+        # Keep the hook-style parameter name intact for plugin compatibility.
+        _ = path
         return False
 
     # ------------------------------------------------------------------

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-
 import pytest
 
 from bash2yaml.targets.semaphore import SemaphoreTarget

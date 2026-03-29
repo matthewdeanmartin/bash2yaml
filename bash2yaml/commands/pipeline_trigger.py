@@ -306,7 +306,7 @@ def run_all(
 
 if __name__ == "__main__":
 
-    def run():
+    def run() -> None:
         # Example usage:
         #   GITLAB_TOKEN=... python gitlab_pipeline_trigger.py
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")

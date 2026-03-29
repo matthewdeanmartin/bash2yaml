@@ -508,22 +508,21 @@ def run_decompile_gitlab_file(
         _job_iter = [(k, v) for k, v in data.items() if isinstance(v, dict) and "script" in v]
 
     for key, value in _job_iter:
-        if True:
-            logger.debug("Processing job: %s", key)
-            jobs_processed += 1
-            decompiled_count, scripts_info = process_decompile_job(
-                job_name=key,
-                job_data=value,
-                scripts_output_path=scripts_dir,
-                yaml_dir=yaml_dir,
-                dry_run=dry_run,
-                global_vars_filename=global_vars_filename,
-                minimum_lines=minimum_lines,
-                target=target,
-            )
-            total_files_created += decompiled_count
-            if scripts_info:
-                jobs_info[key] = scripts_info
+        logger.debug("Processing job: %s", key)
+        jobs_processed += 1
+        decompiled_count, scripts_info = process_decompile_job(
+            job_name=key,
+            job_data=value,
+            scripts_output_path=scripts_dir,
+            yaml_dir=yaml_dir,
+            dry_run=dry_run,
+            global_vars_filename=global_vars_filename,
+            minimum_lines=minimum_lines,
+            target=target,
+        )
+        total_files_created += decompiled_count
+        if scripts_info:
+            jobs_info[key] = scripts_info
 
     if total_files_created > 0:
         logger.info("Decompileded %s file(s) from %s job(s).", total_files_created, jobs_processed)

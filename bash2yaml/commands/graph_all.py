@@ -19,7 +19,7 @@ from bash2yaml.utils.yaml_factory import get_yaml
 # try:
 #     import matplotlib.pyplot as plt  # noqa
 #     import networkx as nx  # noqa
-#     from graphviz import Source  # noqa
+#     from graphviz import Source  # type: ignore  # noqa
 #     from pyvis.network import Network  # noqa
 # except ModuleNotFoundError:
 #     # Optional render backends; handled at runtime in _auto_pick / render_graph
@@ -234,7 +234,7 @@ def build_graph(input_dir: Path) -> GraphModel:
 
 def _render_with_graphviz(dot_output: str, filename_base: str) -> Path:
     """Render DOT graph using graphviz to SVG format."""
-    from graphviz import Source  # noqa
+    from graphviz import Source  # type: ignore  # noqa
 
     src = Source(dot_output)
     out_file = src.render(

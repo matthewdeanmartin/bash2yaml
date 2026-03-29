@@ -17,47 +17,47 @@ phases:
     runtime-versions:
       nodejs: 20
     commands:
-      - |-
-        # >>> BEGIN inline: scripts/setup.sh
-        echo "Setting up environment..."
-        npm install -g @aws/aws-sdk
-        echo "Setup complete."
-        # <<< END inline
+    - |-
+      # >>> BEGIN inline: scripts/setup.sh
+      echo "Setting up environment..."
+      npm install -g @aws/aws-sdk
+      echo "Setup complete."
+      # <<< END inline
   pre_build:
     commands:
-      - |-
-        # >>> BEGIN inline: scripts/pre_build.sh
-        echo "Running pre-build checks..."
-        npm ci
-        echo "Pre-build complete."
-        # <<< END inline
+    - |-
+      # >>> BEGIN inline: scripts/pre_build.sh
+      echo "Running pre-build checks..."
+      npm ci
+      echo "Pre-build complete."
+      # <<< END inline
   build:
     commands:
-      - |-
-        # >>> BEGIN inline: scripts/build.sh
-        echo "Building project..."
-        npm run build
-        echo "Build complete."
-        # <<< END inline
+    - |-
+      # >>> BEGIN inline: scripts/build.sh
+      echo "Building project..."
+      npm run build
+      echo "Build complete."
+      # <<< END inline
     finally:
       commands:
-        - |-
-          # >>> BEGIN inline: scripts/cleanup.sh
-          echo "Cleaning up temporary files..."
-          rm -rf /tmp/build-cache
-          echo "Cleanup complete."
-          # <<< END inline
+      - |-
+        # >>> BEGIN inline: scripts/cleanup.sh
+        echo "Cleaning up temporary files..."
+        rm -rf /tmp/build-cache
+        echo "Cleanup complete."
+        # <<< END inline
   post_build:
     commands:
-      - |-
-        # >>> BEGIN inline: scripts/post_build.sh
-        echo "Running post-build steps..."
-        aws s3 sync dist/ s3://$BUCKET_NAME/
-        echo "Post-build complete."
-        # <<< END inline
+    - |-
+      # >>> BEGIN inline: scripts/post_build.sh
+      echo "Running post-build steps..."
+      aws s3 sync dist/ s3://$BUCKET_NAME/
+      echo "Post-build complete."
+      # <<< END inline
 artifacts:
   files:
-    - '**/*'
+  - '**/*'
   base-directory: dist
 variables:
   CI_TOOL: bash2yaml

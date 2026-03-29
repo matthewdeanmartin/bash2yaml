@@ -141,7 +141,7 @@ class BuildspecTarget(BaseTarget):
     # ------------------------------------------------------------------
 
     def schema_url(self) -> str | None:
-        return "https://json.schemastore.org/buildspec.json"
+        return "https://json.schemastore.org/aws-codebuild-buildspec.json"
 
     def fallback_schema_path(self) -> str | None:
         return "schemas/buildspec_schema.json"

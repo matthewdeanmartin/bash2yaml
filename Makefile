@@ -30,26 +30,26 @@ test: clean uv.lock install_plugins
 	# $(VENV) pytest --doctest-modules bash2yaml
 	# $(VENV) python -m unittest discover
 	$(VENV) pytest test -vv -n 2 --cov=bash2yaml --cov-report=html --cov-fail-under 48 --cov-branch --cov-report=xml --junitxml=junit.xml -o junit_family=legacy --timeout=5 --session-timeout=600
-	$(VENV) bash ./scripts/basic_checks.sh
+	bash ./scripts/basic_checks.sh
 #	$(VENV) bash basic_test_with_logging.sh
 
 .PHONY: test-summary
 test-summary: clean uv.lock install_plugins
 	@echo "Running tests with summary output"
 	$(VENV) pytest test -q --tb=short --no-header --cov=bash2yaml --cov-fail-under 48 --cov-branch --timeout=5 --session-timeout=600
-	$(VENV) bash ./scripts/basic_checks.sh
+	bash ./scripts/basic_checks.sh
 
 .PHONY: test-llm
 test-llm: clean uv.lock install_plugins
 	@echo "Running tests (LLM-optimized output)"
 	NO_COLOR=1 $(VENV) pytest test -q --tb=line --no-header --color=no --cov=bash2yaml --cov-fail-under 48 --cov-branch --cov-report=term-missing:skip-covered --timeout=5 --session-timeout=600 2>&1 | head -100
-	$(VENV) bash ./scripts/basic_checks.sh
+	bash ./scripts/basic_checks.sh
 
 .PHONY: test-ci
 test-ci: clean uv.lock install_plugins
 	@echo "Running tests (CI mode)"
 	$(VENV) pytest test -v -n auto --tb=short --cov=bash2yaml --cov-report=html --cov-fail-under 48 --cov-branch --cov-report=xml --junitxml=junit.xml -o junit_family=legacy --timeout=5 --session-timeout=600
-	$(VENV) bash ./scripts/basic_checks.sh
+	bash ./scripts/basic_checks.sh
 
 .PHONY: isort
 isort:

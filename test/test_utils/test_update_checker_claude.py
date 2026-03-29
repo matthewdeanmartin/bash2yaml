@@ -396,22 +396,10 @@ class TestFetchPypiJson:
             "releases": {"2.28.0": []},
         }
 
-        def mock_urlopen(request, timeout):
-            import json
+        def mock_fetch_json(url, timeout):
+            return mock_response
 
-            class MockResponse:
-                def read(self):
-                    return json.dumps(mock_response).encode("utf-8")
-
-                def __enter__(self):
-                    return self
-
-                def __exit__(self, *args):
-                    pass
-
-            return MockResponse()
-
-        monkeypatch.setattr("urllib.request.urlopen", mock_urlopen)
+        monkeypatch.setattr("bash2yaml.utils.update_checker.fetch_json", mock_fetch_json)
 
         result = fetch_pypi_json("https://pypi.org/pypi/requests/json", 10.0, logger)
         assert isinstance(result, dict)
@@ -421,14 +409,14 @@ class TestFetchPypiJson:
 
     def test_fetch_nonexistent_package(self, monkeypatch):
         """Should raise PackageNotFoundError for non-existent packages."""
-        from urllib.error import HTTPError
-
         logger = get_logger(None)
 
-        def mock_urlopen(request, timeout):
-            raise HTTPError(request.full_url, 404, "Not Found", {}, None)
+        def mock_fetch_json(url, timeout):
+            from bash2yaml.errors.exceptions import Bash2YamlError
 
-        monkeypatch.setattr("urllib.request.urlopen", mock_urlopen)
+            raise Bash2YamlError("Not Found")
+
+        monkeypatch.setattr("bash2yaml.utils.update_checker.fetch_json", mock_fetch_json)
 
         with pytest.raises(PackageNotFoundError):
             fetch_pypi_json("https://pypi.org/pypi/this-package-should-never-exist-12345/json", 5.0, logger)
@@ -590,14 +578,14 @@ class TestRealWorldScenarios:
 
     def test_nonexistent_package(self, monkeypatch):
         """Test behavior with a non-existent package - should return None gracefully."""
-        from urllib.error import HTTPError
-
         logger = get_logger(None)
 
-        def mock_urlopen(request, timeout):
-            raise HTTPError(request.full_url, 404, "Not Found", {}, None)
+        def mock_fetch_json(url, timeout):
+            from bash2yaml.errors.exceptions import Bash2YamlError
 
-        monkeypatch.setattr("urllib.request.urlopen", mock_urlopen)
+            raise Bash2YamlError("Not Found")
+
+        monkeypatch.setattr("bash2yaml.utils.update_checker.fetch_json", mock_fetch_json)
 
         # Behavior: check_for_updates catches PackageNotFoundError and returns None
         result = check_for_updates("this-package-absolutely-should-not-exist-12345", "1.0.0", logger)
@@ -614,22 +602,10 @@ class TestRealWorldScenarios:
             "releases": {"2.28.0": [], "1.0.0": []},
         }
 
-        def mock_urlopen(request, timeout):
-            import json
+        def mock_fetch_json(url, timeout):
+            return mock_response
 
-            class MockResponse:
-                def read(self):
-                    return json.dumps(mock_response).encode("utf-8")
-
-                def __enter__(self):
-                    return self
-
-                def __exit__(self, *args):
-                    pass
-
-            return MockResponse()
-
-        monkeypatch.setattr("urllib.request.urlopen", mock_urlopen)
+        monkeypatch.setattr("bash2yaml.utils.update_checker.fetch_json", mock_fetch_json)
 
         # Reset global state
         update_checker._background_check_result = None

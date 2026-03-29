@@ -12,7 +12,6 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -31,25 +30,16 @@ else:
     except ImportError:
         files = None
 
-# Python 3.9+ cache support
-try:
-    from functools import cache as _py_cache
-
-    cache = _py_cache
-except ImportError:
-
-    def cache(func):
-        return lru_cache(maxsize=None)(func)
-
 
 class BuildspecValidator:
     """Validates AWS CodeBuild Buildspec YAML files against the SchemaStore schema."""
 
     def __init__(self, cache_dir: str | None = None):
-        self.schema_url = "https://json.schemastore.org/buildspec.json"
+        self.schema_url = "https://json.schemastore.org/aws-codebuild-buildspec.json"
         self.cache_dir = Path(cache_dir) if cache_dir else Path(tempfile.gettempdir())
         self.cache_file = self.cache_dir / "buildspec_schema.json"
         self.fallback_schema_path = "schemas/buildspec_schema.json"
+        self._schema: dict[str, Any] | None = None
         self.yaml = ruamel.yaml.YAML(typ="rt")
 
     def _fetch_schema_from_url(self) -> dict[str, Any] | None:
@@ -111,23 +101,28 @@ class BuildspecValidator:
 
         return None
 
-    @cache  # noqa: B019
     def get_schema(self) -> dict[str, Any]:
         """Get the AWS CodeBuild Buildspec schema: cache -> URL -> fallback."""
+        if self._schema is not None:
+            return self._schema
+
         schema = self._load_schema_from_cache()
         if schema:
             logger.debug("Using cached AWS CodeBuild Buildspec schema")
+            self._schema = schema
             return schema
 
         schema = self._fetch_schema_from_url()
         if schema:
             logger.debug("Using schema from URL")
             self._save_schema_to_cache(schema)
+            self._schema = schema
             return schema
 
         schema = self._load_fallback_schema()
         if schema:
             logger.debug("Using AWS CodeBuild Buildspec schema from package")
+            self._schema = schema
             return schema
 
         raise RuntimeError("Could not load AWS CodeBuild Buildspec schema from URL, cache, or fallback resource")

@@ -54,7 +54,7 @@ def get_http_pool(user_agent: str = "bash2yaml-update-checker/2"):
 
 def fetch_json(
     url: str,
-    _timeout: float,  # noqa
+    timeout: float = 5.0,
 ) -> dict[str, Any]:
     """
     Fetch JSON metadata from PyPI (or any HTTPS JSON endpoint) using urllib3.
@@ -75,9 +75,9 @@ def fetch_json(
     if not url.lower().startswith("https://"):
         raise ValueError("Refusing to fetch non-HTTPS URL for security.")
 
-    # # Split timeout into connect/read parts. Adjust to your latency profile.
-    # connect_to = min(max(timeout * 0.3, 0.5), 5.0)  # 30% of total, clamped 0.5..5s
-    # read_to = timeout
+    # Split timeout into connect/read parts. Adjust to your latency profile.
+    connect_to = min(max(timeout * 0.3, 0.5), 5.0)  # 30% of total, clamped 0.5..5s
+    read_to = timeout
 
     # Stream then read so the connection is safely returned to the pool.
     # decode_content=True lets urllib3 transparently decompress gzip/deflate/br.
@@ -85,8 +85,7 @@ def fetch_json(
     with _HTTP.request(
         "GET",
         url,
-        # timeout=urllib3.Timeout(connect=connect_to, read=read_to),
-        timeout=urllib3.Timeout(connect=0.5, read=0.5),
+        timeout=urllib3.Timeout(connect=connect_to, read=read_to),
         preload_content=False,
         decode_content=True,
     ) as r:
