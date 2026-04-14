@@ -12,6 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed for any bug fixes.
 - Security in case of vulnerabilities.
 
+## [0.11.1] - 2025-4-14
+
+### Fixed
+
+- Gets schema from package resource when network not available.
+
+
 ## [0.11.0] - 2025-3-16
 
 ### Changed

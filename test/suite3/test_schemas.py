@@ -95,23 +95,20 @@ class TestGitLabCISchema:
 
 class TestValidatorUsesBundledSchema:
     def test_validator_loads_fallback_without_network(self, tmp_path):
-        """_load_fallback_schema returns a dict or None (None in dev if resources not resolved)."""
+        """The bundled schema must resolve without any network access."""
         from bash2yaml.utils.validate_pipeline import GitLabCIValidator
 
         v = GitLabCIValidator(cache_dir=str(tmp_path))
         schema = v._load_fallback_schema()
-        # None is acceptable if package resource path doesn't resolve in dev environment
-        assert schema is None or isinstance(schema, dict)
+        assert isinstance(schema, dict)
 
     def test_fallback_schema_is_same_as_bundled_file_if_loads(self, tmp_path):
-        """If fallback loads, its top-level keys must match the schemas/ file."""
+        """The resolved fallback must match the bundled schema file."""
         from bash2yaml.utils.validate_pipeline import GitLabCIValidator
 
         bundled = _load_json(_SCHEMAS_DIR / "gitlab_ci_schema.json")
         v = GitLabCIValidator(cache_dir=str(tmp_path))
         fallback = v._load_fallback_schema()
-        if fallback is None:
-            pytest.skip("Fallback schema not resolvable in this environment")
         assert set(bundled.keys()) == set(fallback.keys())
 
     def test_pragma_bypass_does_not_require_schema(self, tmp_path, monkeypatch):
