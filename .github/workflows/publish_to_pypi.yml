@@ -1,6 +1,6 @@
 # .github/workflows/publish-to-pypi.yml
 
-name: Publish bash2gitlab to PyPI
+name: Publish bash2yaml to PyPI
 
 on:
   workflow_dispatch:
@@ -58,7 +58,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/bash2gitlab
+      url: https://pypi.org/p/bash2yaml
     permissions:
       id-token: write
     needs: build
