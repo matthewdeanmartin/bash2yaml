@@ -215,7 +215,6 @@ __marimo__/
 /dependency-graph-empty
 /dependency-graph-proj
 /dependency-graph-src
-requirements.txt
 source_condensed.md
 junit.xml
 SOURCE.md
