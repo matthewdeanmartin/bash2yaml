@@ -3,14 +3,14 @@
 # Recompile instead of editing this file.
 #
 # Compiled with the command: 
-#     bash2yaml compile --in C:\github\bash2yaml\test\test_commands\scenario_artifact_inline\uncompiled --out C:\github\bash2yaml\test\test_commands\scenario_artifact_inline\.out
+#     bash2yaml compile --in /home/mmartin/github/bash2yaml/test/test_commands/scenario_artifact_inline/uncompiled --out /home/mmartin/github/bash2yaml/test/test_commands/scenario_artifact_inline/.out
 
 test-artifact-inline:
   stage: test
   before_script:
   - |-
-    # >>> BEGIN inline-artifact: test-configs (zip, 301 bytes)
-    __B2G_ARTIFACT='UEsDBBQAAAAIALeQXFwzz/t0MgAAADsAAAANAAAALmVkaXRvcmNvbmZpZyvKzy9RsFUoKSpN5eXi5YrWiuXlysxLSc0riS8uqcxJVbBVKC5ITE5FiGZWgQRNeLkAUEsDBBQAAAAIALKQXFy4wH2DIQAAAB8AAAAJAAAALnB5bGludHJji/Z1DA5xDYrl5cpNrNDNycxL1c1JzUsvybA1NDLg5QIAUEsBAhQAFAAAAAgAt5BcXDPP+3QyAAAAOwAAAA0AAAAAAAAAAAAAALaBAAAAAC5lZGl0b3Jjb25maWdQSwECFAAUAAAACACykFxcuMB9gyEAAAAfAAAACQAAAAAAAAAAAAAAtoFdAAAALnB5bGludHJjUEsFBgAAAAACAAIAcgAAAKUAAAAAAA=='
+    # >>> BEGIN inline-artifact: test-configs (zip, 294 bytes)
+    __B2G_ARTIFACT='UEsDBBQAAAAIAG6yt1x267uLLQAAADYAAAANAAAALmVkaXRvcmNvbmZpZyvKzy9RsFUoKSpN5eKK1orlysxLSc0riS8uqcxJBUoUFyQmp8IFM6tAYiZcAFBLAwQUAAAACABusrdcjHrJwR8AAAAdAAAACQAAAC5weWxpbnRyY4v2dQwOcQ2K5cpNrNDNycxL1c1JzUsvybA1NDLgAgBQSwECFAMUAAAACABusrdcduu7iy0AAAA2AAAADQAAAAAAAAAAAAAApIEAAAAALmVkaXRvcmNvbmZpZ1BLAQIUAxQAAAAIAG6yt1yMesnBHwAAAB0AAAAJAAAAAAAAAAAAAACkgVgAAAAucHlsaW50cmNQSwUGAAAAAAIAAgByAAAAngAAAAAA'
     mkdir -p ./configs
     echo "$__B2G_ARTIFACT" | base64 -d | unzip -q -d ./configs -
     unset __B2G_ARTIFACT
