@@ -240,3 +240,11 @@ To define variables that should be inlined into the global `variables:` block of
 |-----------------|------------------------------------------------------------------------------------------------------|
 | **Open Issues** | ![GitHub issues](https://img.shields.io/github/issues/matthewdeanmartin/bash2yaml)                 |
 | **Stars**       | ![GitHub Repo stars](https://img.shields.io/github/stars/matthewdeanmartin/bash2yaml?style=social) |
+
+## Project Links
+
+- [GitHub](https://github.com/matthewdeanmartin/bash2yaml)
+- [PyPI](https://pypi.org/project/bash2yaml/)
+- [Documentation](https://bash2yaml.readthedocs.io/en/latest/)
+- [Bug Tracker](https://github.com/matthewdeanmartin/bash2yaml/issues)
+- [Change Log](https://github.com/matthewdeanmartin/bash2yaml/blob/main/CHANGELOG.md)
