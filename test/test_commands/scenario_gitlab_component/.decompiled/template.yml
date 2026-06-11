@@ -1,0 +1,21 @@
+# DO NOT EDIT
+# This is a compiled file, compiled with bash2yaml
+# Recompile instead of editing this file.
+#
+# Compiled with the command: 
+#     bash2yaml compile --in C:\github\bash2yaml\test\test_commands\scenario_gitlab_component\uncompiled --out C:\github\bash2yaml\test\test_commands\scenario_gitlab_component\.out
+
+spec:
+  inputs:
+    stage:
+      default: test
+      description: "Stage for the scan job."
+    job-prefix:
+      type: string
+      default: "secret"
+      description: "Prefix for the generated job name."
+---
+"$[[ inputs.job-prefix ]]-scan":
+  stage: $[[ inputs.stage ]]
+  script: >-
+    ./inputs.job-prefix-scan.sh

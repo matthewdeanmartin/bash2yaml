@@ -20,6 +20,7 @@ from bash2yaml.commands.doctor_checks import (
 from bash2yaml.commands.input_change_detector import needs_compilation
 from bash2yaml.commands.map_commit import run_commit_map
 from bash2yaml.config import config
+from bash2yaml.utils.gitlab_components import find_component_templates
 from bash2yaml.utils.terminal_colors import Colors
 from bash2yaml.utils.utils import short_path
 from bash2yaml.utils.validate_pipeline import GitLabCIValidator
@@ -194,6 +195,14 @@ def run_doctor() -> int:
     if not check("No excessively large script files found", not large_script_warnings, large_script_warnings):
         # This is a warning, not a failure
         pass
+
+    component_templates = find_component_templates(input_dir)
+    if component_templates:
+        check(
+            f"GitLab CI/CD component templates detected ({len(component_templates)})",
+            True,
+            [f"Component template (spec:inputs): {short_path(p)}" for p in component_templates],
+        )
 
     input_yaml_errors = check_yaml_validity(input_dir)
     if not check(

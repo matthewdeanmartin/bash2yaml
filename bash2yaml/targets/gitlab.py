@@ -19,6 +19,7 @@ GITLAB_SCRIPT_KEYS = ["script", "before_script", "after_script", "pre_get_source
 
 # Top-level YAML keys that are NOT jobs — the compiler must skip these.
 GITLAB_RESERVED_KEYS: set[str] = {
+    "spec",
     "stages",
     "variables",
     "include",

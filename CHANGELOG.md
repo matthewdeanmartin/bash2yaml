@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- GitLab CI/CD component template support (`spec:inputs`). Compile, decompile,
+  and validate now handle the multi-document layout: the `spec:` header
+  round-trips byte-identically, the body is compiled and schema-validated on
+  its own, and the header is validated against the `spec:inputs` shape.
+- `$[[ inputs.x ]]` interpolation passes through compilation verbatim.
+  Interpolation inside `.sh` source files is opt-in via
+  `# Pragma: gitlab-interpolation` (the pragma line is stripped from compiled
+  output; interpolation without the pragma warns). Decompile adds the pragma
+  automatically when extracted script lines contain interpolation.
+- `bash2yaml init --component NAME` non-interactively scaffolds a component
+  repo (`src/NAME/template.yml` + `src/scripts/NAME.sh`, compiled to
+  `templates/NAME/template.yml`).
+- `bash2yaml doctor` reports GitLab component templates detected in the input
+  directory.
+- Worked example under `examples/gitlab-component/` and a docs page
+  (`docs/usage/components.md`).
+
 ## [0.11.1] - 2026-04-15
 
 ### Fixed

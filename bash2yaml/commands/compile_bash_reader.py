@@ -8,6 +8,7 @@ import re
 from pathlib import Path
 
 from bash2yaml.errors.exceptions import Bash2YamlError
+from bash2yaml.utils.gitlab_components import strip_interpolation_pragma_lines
 from bash2yaml.utils.pathlib_polyfills import is_relative_to
 from bash2yaml.utils.utils import short_path
 
@@ -90,6 +91,11 @@ def read_bash_script(path: Path) -> str:
 
     # Use the recursive inliner to do all the work, including shebang handling.
     content = inline_bash_source(path)
+
+    # GitLab `$[[ inputs.x ]]` interpolation passes through verbatim; the
+    # gitlab-interpolation pragma line itself is a compiler directive and is
+    # stripped (and its absence next to `$[[ ]]` tokens warns).
+    content = strip_interpolation_pragma_lines(content, short_path(path))
 
     if not content.strip():
         raise Bash2YamlError(f"Script is empty or only contains whitespace: {path}")

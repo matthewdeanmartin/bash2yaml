@@ -17,7 +17,32 @@ from bash2yaml.utils.utils import short_path
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["run_init"]
+__all__ = ["run_init", "run_init_component"]
+
+# Scaffold for `init --component NAME`. Compiling `src/` into `templates/`
+# yields the `templates/<name>/template.yml` layout GitLab requires for
+# CI/CD component repos.
+COMPONENT_TEMPLATE_SCAFFOLD = """spec:
+  inputs:
+    stage:
+      default: test
+      description: "Stage to run the {name} job in."
+    job-prefix:
+      type: string
+      default: "{name}"
+      description: "Prefix for the generated job name."
+---
+"$[[ inputs.job-prefix ]]-job":
+  stage: $[[ inputs.stage ]]
+  script:
+    - ./scripts/{name}.sh
+"""
+
+COMPONENT_SCRIPT_SCAFFOLD = """#!/usr/bin/env bash
+set -euo pipefail
+
+echo "Hello from the {name} component."
+"""
 
 
 def _get_git_remote_url() -> str | None:
@@ -53,9 +78,7 @@ def prompt_for_config(console: Console, output_dir_default: str) -> dict[str, An
         console.print(Panel.fit("[bold cyan]Lint Settings[/bold cyan]", border_style="cyan"))
         lint_config = {
             "gitlab_url": Prompt.ask("Enter your GitLab instance URL", default="https://gitlab.com"),
-            "project_id": IntPrompt.ask(
-                "Enter the GitLab Project ID for project-scoped linting (optional)", default=None
-            ),
+            "project_id": IntPrompt.ask("Enter the GitLab Project ID for project-scoped linting (optional)", default=None),
         }
         # Filter out None values
         config["lint"] = {k: v for k, v in lint_config.items() if v is not None}
@@ -65,12 +88,8 @@ def prompt_for_config(console: Console, output_dir_default: str) -> dict[str, An
         console.print(Panel.fit("[bold cyan]Decompile Settings[/bold cyan]", border_style="cyan"))
         decompile_config = {
             # Since input_dir is the most common case for a folder, default to that.
-            "input_folder": Prompt.ask(
-                "Enter the default folder to decompile from", default=config.get("input_dir", "src")
-            ),
-            "output_dir": Prompt.ask(
-                "Enter the default directory for decompiled output", default=config.get("output_dir", "out")
-            ),
+            "input_folder": Prompt.ask("Enter the default folder to decompile from", default=config.get("input_dir", "src")),
+            "output_dir": Prompt.ask("Enter the default directory for decompiled output", default=config.get("output_dir", "out")),
         }
         config["decompile"] = decompile_config
 
@@ -82,9 +101,7 @@ def prompt_for_config(console: Console, output_dir_default: str) -> dict[str, An
             "repo_url": Prompt.ask("Enter the repository URL to copy from", default=repo_url_default),
             "branch": Prompt.ask("Enter the branch to copy from", default="main"),
             "source_dir": Prompt.ask("Enter the source directory within the repo to copy", default="."),
-            "copy_dir": Prompt.ask(
-                "Enter the local directory to copy files to", default=config.get("output_dir", "out")
-            ),
+            "copy_dir": Prompt.ask("Enter the local directory to copy files to", default=config.get("output_dir", "out")),
         }
         config["copy2local"] = copy2local_config
 
@@ -122,9 +139,7 @@ def create_or_update_config_file(base_path: Path, config_data: dict[str, Any], f
         doc = tomlkit.parse(toml_path.read_text(encoding="utf-8"))
 
         if "tool" in doc and "bash2yaml" in doc["tool"] and not force:  # type: ignore[operator]
-            raise FileExistsError(
-                "A '[tool.bash2yaml]' section already exists in pyproject.toml. Use the --force flag to overwrite it."
-            )
+            raise FileExistsError("A '[tool.bash2yaml]' section already exists in pyproject.toml. Use the --force flag to overwrite it.")
     else:
         logger.info(f"No 'pyproject.toml' found. A new one will be created at '{short_path(base_path)}'.")
         doc = tomlkit.document()
@@ -158,6 +173,58 @@ def create_or_update_config_file(base_path: Path, config_data: dict[str, Any], f
     logger.info(f"Successfully wrote configuration to '{toml_path}'.")
 
 
+def run_init_component(directory, name: str, force: bool = False) -> int:
+    """Non-interactive scaffold for a GitLab CI/CD component repo.
+
+    Creates ``src/<name>/template.yml`` (a ``spec:inputs`` component template)
+    plus ``src/scripts/<name>.sh``, and configures ``input_dir=src`` /
+    ``output_dir=templates`` so compilation produces the
+    ``templates/<name>/template.yml`` layout GitLab component repos require.
+    """
+    console = Console()
+    base_path = Path(directory).resolve()
+
+    safe_name = name.strip().lower()
+    if not safe_name or not all(c.isalnum() or c in "-_" for c in safe_name):
+        console.print(f"[bold red]Error:[/bold red] component name '{name}' must be alphanumeric with - or _.")
+        return 1
+
+    template_path = base_path / "src" / safe_name / "template.yml"
+    script_path = base_path / "src" / "scripts" / f"{safe_name}.sh"
+
+    existing = [p for p in (template_path, script_path) if p.exists()]
+    if existing and not force:
+        for p in existing:
+            console.print(f"[bold red]Error:[/bold red] '{short_path(p)}' already exists. Use --force to overwrite.")
+        return 1
+
+    try:
+        config_data = {"tool": {"bash2yaml": {"input_dir": "src", "output_dir": "templates"}}}
+        create_or_update_config_file(base_path, config_data, force)
+
+        template_path.parent.mkdir(parents=True, exist_ok=True)
+        template_path.write_text(COMPONENT_TEMPLATE_SCAFFOLD.format(name=safe_name), encoding="utf-8")
+        script_path.parent.mkdir(parents=True, exist_ok=True)
+        script_path.write_text(COMPONENT_SCRIPT_SCAFFOLD.format(name=safe_name), encoding="utf-8")
+        script_path.chmod(0o755)
+
+        console.print(f"Created component template: [cyan]{short_path(template_path)}[/cyan]")
+        console.print(f"Created component script:   [cyan]{short_path(script_path)}[/cyan]")
+        console.print("\n[bold green]✅ Component scaffold complete.[/bold green]")
+        console.print("Next steps:")
+        console.print("  1. Edit the script and the `spec:inputs` header to fit your component.")
+        console.print("  2. Run [cyan]bash2yaml compile[/cyan] to produce templates/" + safe_name + "/template.yml")
+        console.print("  3. Consumers include it via [cyan]include: component: <host>/<project>/" + safe_name + "@<version>[/cyan]")
+        return 0
+    except FileExistsError as e:
+        console.print(f"\n[bold red]Error:[/bold red] {e}")
+        return 1
+    except Exception as e:
+        console.print(f"\n[bold red]An unexpected error occurred:[/bold red] {e}")
+        logger.exception("Unexpected error during init --component.")
+        return 1
+
+
 def run_init(directory, force) -> int:
     """Handles the `init` command logic using the new interactive wizard."""
     console = Console()
@@ -174,9 +241,7 @@ def run_init(directory, force) -> int:
         console.print(Syntax(final_toml_string, "toml", theme="monokai", line_numbers=True))
         console.print("=" * 60)
 
-        if not Confirm.ask(
-            f"\nWrite this configuration to [cyan]{short_path(base_path / 'pyproject.toml')} [/cyan]?", default=True
-        ):
+        if not Confirm.ask(f"\nWrite this configuration to [cyan]{short_path(base_path / 'pyproject.toml')} [/cyan]?", default=True):
             console.print("\n[yellow]Initialization cancelled by user.[/yellow]")
             return 1
 

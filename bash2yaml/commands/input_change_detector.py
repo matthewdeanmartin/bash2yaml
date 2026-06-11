@@ -21,8 +21,9 @@ logger = logging.getLogger(__name__)
 def normalize_yaml_content(content: str) -> str:
     """Normalize YAML content by loading and dumping to remove formatting differences."""
     try:
+        # load_all: component templates are multi-document files (spec header + body)
         yaml = get_yaml()
-        data = yaml.load(content)
+        data = list(yaml.load_all(content))
         # Use a clean YAML dumper for normalization
 
         norm_yaml = YAML()
@@ -30,7 +31,7 @@ def normalize_yaml_content(content: str) -> str:
         norm_yaml.default_flow_style = False
 
         output = StringIO()
-        norm_yaml.dump(data, output)
+        norm_yaml.dump_all(data, output)
         return output.getvalue()
     except Exception as e:
         logger.warning(f"Failed to normalize YAML content: {e}. Using original content.")

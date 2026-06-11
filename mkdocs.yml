@@ -28,6 +28,7 @@ nav:
       - "Commands": "usage/commands.md"
       - "Configuration": "usage/config.md"
       - "Workflows": "usage/workflows.md"
+      - "GitLab Components": "usage/components.md"
   - "Level up your YAML + Bash":
       - "Orchestrating " : "quality_gates/orchestrating.md"
       - "Formatting YAML": "quality_gates/formatting.md"

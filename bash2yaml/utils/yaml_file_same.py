@@ -42,10 +42,11 @@ def yaml_is_same(current_content: str, new_content: str) -> bool:
     if current_norm == new_norm:
         return True
 
+    # load_all: component templates are multi-document files (spec header + body)
     yaml = get_yaml()
     try:
-        new_doc = yaml.load(new_content)
-        curr_doc = yaml.load(current_content)
+        new_doc = list(yaml.load_all(new_content))
+        curr_doc = list(yaml.load_all(current_content))
     except YAMLError:
         return False
 

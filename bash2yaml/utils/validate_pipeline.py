@@ -15,6 +15,8 @@ import jsonschema
 import orjson as json
 import ruamel.yaml
 
+from bash2yaml.utils.gitlab_components import split_component_template, validate_spec_header
+
 logger = logging.getLogger(__name__)
 
 # Import compatibility for Python 3.8+
@@ -207,6 +209,15 @@ class GitLabCIValidator:
             logger.debug("Skipping validation found do-not-validate-schema Pragma")
             return True, []
 
+        # Component templates: validate the spec header against the inputs
+        # shape and the body (only) against the pipeline schema. The header is
+        # not part of the pipeline schema and would fail it.
+        component = split_component_template(yaml_content)
+        spec_errors: list[str] = []
+        if component is not None:
+            _, spec_errors = validate_spec_header(component.header)
+            yaml_content = component.body
+
         try:
             # Convert YAML to JSON-compatible dict
             config_dict = self.yaml_to_json(yaml_content)
@@ -216,7 +227,7 @@ class GitLabCIValidator:
 
             # Validate against schema
             validator = jsonschema.Draft7Validator(schema)
-            errors = []
+            errors = list(spec_errors)
 
             for error in validator.iter_errors(config_dict):
                 error_path = " -> ".join(str(p) for p in error.absolute_path) if error.absolute_path else "root"

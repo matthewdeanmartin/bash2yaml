@@ -27,6 +27,7 @@ from ruamel.yaml.scalarstring import FoldedScalarString
 from bash2yaml.config import config
 from bash2yaml.errors.exceptions import ValidationFailed
 from bash2yaml.targets.base import BaseTarget
+from bash2yaml.utils.gitlab_components import INTERPOLATION_REGEX, split_component_template
 from bash2yaml.utils.mock_ci_vars import generate_mock_ci_variables_script
 from bash2yaml.utils.pathlib_polyfills import is_relative_to
 from bash2yaml.utils.utils import short_path
@@ -325,6 +326,10 @@ def decompile_script_block(
     shebang = custom_shebangs.get(file_ext, SHEBANG)  # SHEBANG is the '#!/bin/bash' default
 
     header_parts: list[str] = [shebang]
+    # Extracted GitLab `$[[ ]]` interpolation needs the pragma so the script
+    # recompiles without warnings.
+    if any(INTERPOLATION_REGEX.search(line) for line in script_lines):
+        header_parts.append("# Pragma: gitlab-interpolation")
     sourcing_block: list[str] = []
     if global_vars_filename:
         sourcing_block.append(f"  . ./{global_vars_filename}")
@@ -480,7 +485,14 @@ def run_decompile_gitlab_file(
     yaml.indent(mapping=2, sequence=4, offset=2)
 
     logger.info("Loading GitLab CI configuration from: %s", short_path(input_yaml_path))
-    data = yaml.load(input_yaml_path)
+    raw_text = input_yaml_path.read_text(encoding="utf-8")
+
+    # Component templates: keep the `spec:inputs` header as raw text so it is
+    # written back byte-identically; decompile only the pipeline body.
+    component = split_component_template(raw_text)
+    if component is not None:
+        logger.info("Detected GitLab component template; preserving spec header.")
+    data = yaml.load(io.StringIO(component.body if component is not None else raw_text))
 
     # Layout: write YAML and scripts side-by-side under output_dir[/subdirs]
     output_yaml_path = output_dir / input_yaml_path.name
@@ -529,8 +541,10 @@ def run_decompile_gitlab_file(
         if not dry_run:
             logger.info("Writing modified YAML to: %s", short_path(output_yaml_path))
             output_yaml_path.parent.mkdir(parents=True, exist_ok=True)
-            with output_yaml_path.open("w", encoding="utf-8") as f:
-                yaml.dump(data, f)
+            body_buf = io.StringIO()
+            yaml.dump(data, body_buf)
+            out_text = component.reassemble(body_buf.getvalue()) if component is not None else body_buf.getvalue()
+            output_yaml_path.write_text(out_text, encoding="utf-8")
             with output_yaml_path.open() as f:
                 new_content = f.read()
                 if target is not None:

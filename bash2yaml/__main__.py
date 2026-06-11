@@ -264,9 +264,15 @@ def trigger_pipelines_handler(args: argparse.Namespace) -> int:
 
 def init_handler(args: argparse.Namespace) -> int:
     """Handles the `init` command logic."""
-    logger.info("Starting interactive project initializer...")
     directory = args.directory
     force = args.force
+    component = getattr(args, "component", None)
+    if component:
+        logger.info("Scaffolding GitLab CI/CD component '%s'...", component)
+        from bash2yaml.commands.init_project import run_init_component
+
+        return run_init_component(directory, component, force)
+    logger.info("Starting interactive project initializer...")
     return run_init(directory, force)
 
 
@@ -728,6 +734,12 @@ def main() -> int:
         "--force",
         action="store_true",
         help="Overwrite an existing [tool.bash2yaml] section in pyproject.toml.",
+    )
+    init_parser.add_argument(
+        "--component",
+        metavar="NAME",
+        help="Non-interactively scaffold a GitLab CI/CD component repo "
+        "(src/NAME/template.yml with a spec:inputs header, compiled to templates/NAME/template.yml).",
     )
     add_common_arguments(init_parser)
     init_parser.set_defaults(func=init_handler)  # Changed from init_handler to run_init

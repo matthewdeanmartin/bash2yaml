@@ -26,6 +26,7 @@ from bash2yaml.plugins import get_pm
 from bash2yaml.targets.base import BaseTarget
 from bash2yaml.utils import diff_helpers
 from bash2yaml.utils.dotenv import parse_env_file
+from bash2yaml.utils.gitlab_components import split_component_template
 from bash2yaml.utils.parse_bash import extract_script_path
 from bash2yaml.utils.utils import remove_leading_blank_lines, short_path
 from bash2yaml.utils.validate_pipeline import GitLabCIValidator
@@ -334,6 +335,16 @@ def inline_gitlab_scripts(
     """
     inlined_count = 0
     yaml = get_yaml()
+
+    # GitLab component templates carry a `spec:inputs` header document
+    # separated from the pipeline body by `---`. The header is never
+    # compiled — split it off as raw text so it round-trips byte-identically,
+    # and compile only the body.
+    component = split_component_template(gitlab_ci_yaml)
+    if component is not None:
+        logger.debug("Detected GitLab component template (spec:inputs header); compiling body only.")
+        gitlab_ci_yaml = component.body
+
     data = yaml.load(io.StringIO(gitlab_ci_yaml))
 
     if global_vars:
@@ -456,6 +467,8 @@ def inline_gitlab_scripts(
     out_stream = io.StringIO()
     yaml.dump(data, out_stream)
 
+    if component is not None:
+        return inlined_count, component.reassemble(out_stream.getvalue())
     return inlined_count, out_stream.getvalue()
 
 
@@ -551,9 +564,10 @@ def write_compiled_file(
     current_content = output_file.read_text(encoding="utf-8")
 
     # Load both YAML versions to compare their data structures
+    # load_all: component templates are multi-document files (spec header + body)
     yaml = get_yaml()
     try:
-        last_known_doc = yaml.load(last_known_content)
+        last_known_doc = list(yaml.load_all(last_known_content))
     except YAMLError as e:
         logger.error(
             "ERROR: Could not parse YAML from the .hash file for '%s'. It is corrupted. Error: %s",
@@ -563,7 +577,7 @@ def write_compiled_file(
         raise CompileError() from e
 
     try:
-        current_doc = yaml.load(current_content)
+        current_doc = list(yaml.load_all(current_content))
         is_current_corrupt = False
     except YAMLError:
         current_doc = None

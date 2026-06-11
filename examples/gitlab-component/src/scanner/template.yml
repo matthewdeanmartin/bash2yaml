@@ -1,0 +1,14 @@
+spec:
+  inputs:
+    stage:
+      default: test
+      description: "Stage for the scan job."
+    job-prefix:
+      type: string
+      default: "secret"
+      description: "Prefix for the generated job name."
+---
+"$[[ inputs.job-prefix ]]-scan":
+  stage: $[[ inputs.stage ]]
+  script:
+    - ./scripts/scan.sh
