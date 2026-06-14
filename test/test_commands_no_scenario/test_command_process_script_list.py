@@ -40,14 +40,32 @@ def test_short_list_preserves_list_form(scripts_root):
 
 
 def test_inline_bash_script_from_path(scripts_root):
-    """Test successful inlining of a bash script specified by relative path."""
+    """Inlining works when scripts_root is outside cwd (the root becomes the boundary).
+
+    Traceless mode keeps sources in an out-of-tree state dir, so an
+    out-of-cwd scripts_root must be compilable; sourcing may still not
+    escape that root (see test below).
+    """
     script_content = "#!/bin/bash\nls -la\necho 'done'"
     script_file = scripts_root / "test.sh"
     script_file.write_text(script_content)
 
     script_list = ["echo 'start'", "./test.sh", "echo 'end'"]
-    with pytest.raises(SourceSecurityError):
-        process_script_list(script_list, scripts_root)
+    result = process_script_list(script_list, scripts_root)
+    text = str(result)
+    assert "ls -la" in text
+    assert "./test.sh" not in text
+
+
+def test_sourcing_outside_scripts_root_still_blocked(scripts_root, tmp_path):
+    """A script sourcing a file that escapes the scripts root raises SourceSecurityError."""
+    outside = tmp_path / "outside.sh"
+    outside.write_text("echo 'escaped'\n")
+    script_file = scripts_root / "test.sh"
+    script_file.write_text("#!/bin/bash\nsource ../outside.sh\n")
+
+    with pytest.raises((SourceSecurityError, Exception), match="escapes allowed root|Could not inline"):
+        process_script_list(["./test.sh"], scripts_root)
 
 
 def test_inline_script_file_not_found_raises_exception(scripts_root):

@@ -92,6 +92,7 @@ decompile, validate, and drift-detect all pass on it; existing GitLab tests
 still pass.
 
 ---
+SKIP FOR NOW. NOT TOKEN EFFICIENT.
 
 ## Phase 2 — Feature parity across forge CI dialects
 
@@ -138,6 +139,9 @@ fixtures.
 
 ## Phase 3 — UI/UX ergonomics
 
+> **Status: done (2026-06-10)** except item 5 (hashes — deliberately untouched per the
+> decision below). ADR: `spec/adr-001-ui-surface-tiers.md`. Details in CHANGELOG [Unreleased].
+
 **Problem.** There are five surfaces — CLI, `interactive.py`, `tui.py`,
 `gui.py`, and `web/` — and per `docs_todo/pain_points.md` the interactive
 CLI/GUI/TUI lag behind the main app. Plus known CLI ergonomics debt from
@@ -159,12 +163,10 @@ CLI/GUI/TUI lag behind the main app. Plus known CLI ergonomics debt from
    interactive/TUI/GUI/web are supported vs. demoted to experimental. Bring
    the supported ones up to current command coverage; mark the rest clearly
    in `--help` and docs. Don't silently maintain five half-UIs.
-5. **Hash sidecar cleanup** (also a UX issue — "clutter! ugly!"): migrate
-   per-file `.hash` sidecars to a single `.bash2yaml/hashes.json` (or similar)
-   with a migration shim that reads old sidecars once and deletes them on next
-   compile. **Note:** coordinate with Phase 4 — traceless mode needs hashes in
-   a state dir anyway; build one hash-store abstraction, two backends
-   (in-repo file, traceless state dir).
+   DECISION: 1st tier support cli, interactive. Yes, we should have a good interactive story.
+             2nd tier support tkinter gui. Do not catch up on this today.
+              3rd tier support web. Do not improve this today.
+5. **Hash sidecar cleanup** ... don't do anything about hashes yet. The many file version is ugly but has less merge conflict risk
 
 **Acceptance:** no command exits via unhandled traceback for foreseeable user
 errors; `--json` works on the four core commands; ADR merged; hash store
@@ -174,12 +176,16 @@ unified.
 
 ## Phase 4 — Traceless mode ("invisible mode")
 
-**Status: spec complete, implementation not started.** The full design is in
-`spec/TRACELESS.md` — read it before writing any code; it is the source of
-truth and already contains the v1 scope checklist. Summary: bash2yaml runs
+> **Status: v1 shipped (2026-06-10).** The TRACELESS.md v1 checklist is fully checked;
+> worked example `examples/traceless/` passes adopt → compile → verify → shred end to end.
+
+The full design is in `spec/TRACELESS.md`; it is the source of
+truth and contains the v1 scope checklist (now checked off). Summary: bash2yaml runs
 entirely outside the working tree (state under the user's home, keyed by repo
 fingerprint), emits YAML with no headers/fences/hash sidecars, so a teammate
 sees only normal hand-written-looking YAML.
+
+Important, TRACELESS is an optional workflow, it doesn't replace old workflows.
 
 ### Work items (mirrors the TRACELESS.md v1 checklist)
 

@@ -249,8 +249,8 @@ def test_write_yaml_and_hash(tmp_path, mock_logger):
         assert hash_file.exists()
         assert output_file.read_text().strip(" \n") == content.strip(" \n")
 
-        # Verify hash content
-        encoded = base64.b64encode(content.strip(" \n").encode()).decode()
+        # Verify hash content (the trailing newline survives the write — files end with one)
+        encoded = base64.b64encode(content.encode()).decode()
         assert hash_file.read_text() == encoded
 
 

@@ -23,19 +23,24 @@ def test_remove_leading_blank_lines_all_blank():
 
 def test_remove_leading_blank_lines_strips_only_prefix():
     s = "\n\n   \t\nhello\nworld\n"
-    # Note: function normalizes to '\n' because it rejoins with '\n'
-    assert remove_leading_blank_lines(s) == "hello\nworld"
+    # Note: function normalizes to '\n' because it rejoins with '\n'.
+    # A trailing newline on the input is preserved (files should end with one).
+    assert remove_leading_blank_lines(s) == "hello\nworld\n"
 
 
 def test_remove_leading_blank_lines_preserves_internal_blanks():
     s = "alpha\n\nbeta\n"
-    assert remove_leading_blank_lines(s) == "alpha\n\nbeta"
+    assert remove_leading_blank_lines(s) == "alpha\n\nbeta\n"
 
 
 def test_remove_leading_blank_lines_handles_crlf_newlines():
     s = "\r\n\r\nA\r\nB\r\n"
     # splitlines() drops line endings; function rejoins with '\n'
-    assert remove_leading_blank_lines(s) == "A\nB"
+    assert remove_leading_blank_lines(s) == "A\nB\n"
+
+
+def test_remove_leading_blank_lines_no_trailing_newline_unchanged():
+    assert remove_leading_blank_lines("\n\nhello\nworld") == "hello\nworld"
 
 
 # ----------------------

@@ -2,6 +2,9 @@
 """
 FastAPI server for bash2yaml web interface
 Provides REST API endpoints for the accessible web UI
+
+**Experimental** (tier 3 per spec/adr-001-ui-surface-tiers.md): command
+coverage may lag the CLI; no support guarantees.
 """
 
 from __future__ import annotations

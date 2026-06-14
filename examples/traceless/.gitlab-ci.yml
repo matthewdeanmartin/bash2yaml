@@ -1,0 +1,17 @@
+stages:
+  - build
+  - test
+
+build_job:
+  stage: build
+  script:
+    - echo "Restoring dependencies..."
+    - make deps
+    - echo "Building..."
+    - make all
+
+test_job:
+  stage: test
+  script:
+    - echo "Running tests..."
+    - make test

@@ -30,7 +30,7 @@ class _DummyPM:
     hook = _DummyHook()
 
 
-def _read_bash_script_passthrough(path: Path) -> str:
+def _read_bash_script_passthrough(path: Path, **_kwargs) -> str:
     return Path(path).read_text(encoding="utf-8")
 
 

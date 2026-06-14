@@ -19,11 +19,13 @@ except ImportError:  # no qa
     colorlog_available = False
 
 
-def generate_config(level: str = "DEBUG") -> dict[str, Any]:
+def generate_config(level: str = "DEBUG", stream: str = "ext://sys.stdout") -> dict[str, Any]:
     """
     Generate a logging configuration.
     Args:
         level: The logging level.
+        stream: Output stream for log records. ``--json`` mode points this at
+            stderr so stdout stays machine-parseable.
 
     Returns:
         dict: The logging configuration.
@@ -43,7 +45,7 @@ def generate_config(level: str = "DEBUG") -> dict[str, Any]:
                 "level": level,
                 "formatter": "colored",
                 "class": "logging.StreamHandler",
-                "stream": "ext://sys.stdout",  # Default is stderr
+                "stream": stream,  # Default is stdout here (logging's own default is stderr)
             },
         },
         "loggers": {

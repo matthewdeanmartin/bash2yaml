@@ -33,6 +33,8 @@ positional arguments:
     detect-uncompiled   Detect if input files have changed since last compilation.
     validate            Validate yaml pipelines against Gitlab json schema.
     autogit             Manually trigger the autogit process based on your configuration.
+    traceless           Zero-footprint workflow (adopt/compile/verify/shred): state lives outside the repo,
+                        compiled YAML looks hand-written. See docs/usage/traceless.md.
 
 options:
   -h, --help            show this help message and exit
@@ -42,8 +44,10 @@ options:
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import logging.config
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -65,9 +69,19 @@ from bash2yaml import __doc__ as root_doc
 from bash2yaml.commands.autogit import run_autogit
 from bash2yaml.commands.best_effort_runner import best_efforts_run
 from bash2yaml.commands.clean_all import clean_targets
-from bash2yaml.commands.compile_all import run_compile_all
-from bash2yaml.commands.decompile_all import run_decompile_gitlab_file, run_decompile_gitlab_tree
+from bash2yaml.commands.compile_all import CompileOptions, inline_gitlab_scripts, run_compile_all
+from bash2yaml.commands.decompile_all import (
+    run_decompile_gitlab_file,
+    run_decompile_gitlab_tree,
+    run_decompile_traceless,
+)
 from bash2yaml.commands.detect_drift import run_detect_drift
+from bash2yaml.commands.traceless_cmds import (
+    run_traceless_adopt,
+    run_traceless_compile,
+    run_traceless_shred,
+    run_traceless_verify,
+)
 from bash2yaml.commands.input_change_detector import get_changed_files, needs_compilation
 from bash2yaml.commands.lint_all import lint_output_folder, summarize_results
 from bash2yaml.commands.pipeline_trigger import (
@@ -85,6 +99,7 @@ from bash2yaml.errors.exit_codes import ExitCode, resolve_exit_code
 from bash2yaml.install_help import print_install_help
 from bash2yaml.plugins import get_pm
 from bash2yaml.targets import list_targets, resolve_target
+from bash2yaml.utils.attribution import enable_quiet_attribution
 from bash2yaml.utils.cli_suggestions import SmartParser
 from bash2yaml.utils.logging_config import generate_config
 
@@ -153,6 +168,24 @@ def lint_handler(args: argparse.Namespace) -> int:
     except Exception as e:  # nosec
         logger.error("Unexpected error during lint: %s", e)
         raise
+
+    if getattr(args, "json", False):
+        payload = {
+            "command": "lint",
+            "results": [
+                {
+                    "file": str(r.path),
+                    "ok": r.ok,
+                    "status": r.status,
+                    "errors": [e.message for e in r.errors],
+                    "warnings": [w.message for w in r.warnings],
+                }
+                for r in results
+            ],
+        }
+        print(json.dumps(payload))
+        fail = sum(1 for r in results if not r.ok)
+        return 0 if fail == 0 else 2
 
     _ok, fail = summarize_results(results)
     return 0 if fail == 0 else 2
@@ -292,9 +325,66 @@ def copy2local_handler(args: argparse.Namespace) -> int:
     return 0
 
 
+def build_compile_options(args: argparse.Namespace) -> CompileOptions:
+    """Compose CompileOptions from CLI flags and environment escape hatches."""
+    state_dir = getattr(args, "state_dir", None) or os.environ.get("BASH2YAML_STATE_DIR") or None
+    force = bool(getattr(args, "force", False))
+    if getattr(args, "traceless", False) or os.environ.get("BASH2YAML_TRACELESS") == "1":
+        return CompileOptions.traceless(state_dir=state_dir, force=force)
+    no_header = getattr(args, "no_header", False) or os.environ.get("BASH2YAML_NO_HEADER") == "1"
+    return CompileOptions(
+        emit_header=not no_header,
+        emit_fences=not getattr(args, "no_fences", False),
+        write_hashes=not getattr(args, "no_hash", False),
+        in_place=bool(getattr(args, "in_place", False)),
+        force=force,
+        state_dir=str(state_dir) if state_dir else None,
+    )
+
+
+def compile_stdin_handler(args: argparse.Namespace) -> int:
+    """Compile a single YAML document from stdin to stdout (piped mode).
+
+    Script references resolve relative to the current directory. No banner,
+    no hash sidecars — stdout carries only the compiled YAML.
+    """
+    options = build_compile_options(args)
+    target = getattr(args, "resolved_target", None)
+    scripts_root = Path.cwd()
+    raw_text = sys.stdin.read()
+    inlined, compiled_text = inline_gitlab_scripts(
+        raw_text, scripts_root, {}, scripts_root, target=target, emit_fences=options.emit_fences
+    )
+    sys.stdout.write(compiled_text if inlined > 0 else raw_text)
+    logger.info("Compiled stdin: %s section(s) inlined.", inlined)
+    return 0
+
+
 def compile_handler(args: argparse.Namespace) -> int:
     """Handler for the 'compile' command."""
     logger.info("Starting bash2yaml compiler...")
+
+    if getattr(args, "input_dir", None) == "-":
+        return compile_stdin_handler(args)
+
+    options = build_compile_options(args)
+
+    if getattr(args, "traceless", False) or os.environ.get("BASH2YAML_TRACELESS") == "1":
+        # Traceless compile reads sources from the state dir, not --in/--out.
+        def _resolver(filename: str):
+            return resolve_target(
+                cli_target=getattr(args, "target", None),
+                config_target=config.target,
+                filename=filename,
+                directory=None,
+            )
+
+        return run_traceless_compile(
+            state_dir=options.state_dir,
+            target_resolver=_resolver,
+            force=options.force,
+            dry_run=bool(args.dry_run),
+        )
 
     # Resolve paths, using sensible defaults if optional paths are not provided
     in_dir = Path(args.input_dir).resolve()
@@ -317,26 +407,57 @@ def compile_handler(args: argparse.Namespace) -> int:
         return 0
 
     target = getattr(args, "resolved_target", None)
-    result = run_compile_all(
+    stats: dict[str, Any] = {}
+    inlined = run_compile_all(
         input_dir=in_dir,
         output_path=out_dir,
         dry_run=dry_run,
         parallelism=parallelism,
         force=force,
         target=target,
+        options=options,
+        stats=stats,
     )
+    if getattr(args, "json", False):
+        print(json.dumps({"command": "compile", **stats}))
     target_name = target.display_name if target else "GitLab CI"
-    logger.info("✅ %s processing complete.", target_name)
-    return result
+    logger.info("✅ %s processing complete. %s section(s) inlined.", target_name, inlined)
+    return 0
+
+
+def validate_stdin_handler(args: argparse.Namespace) -> int:
+    """Validate a single YAML document from stdin (piped mode)."""
+    from bash2yaml.utils.validate_pipeline import validate_gitlab_ci_yaml
+
+    target = getattr(args, "resolved_target", None)
+    content = sys.stdin.read()
+    if target is not None:
+        is_valid, errors = target.validate(content)
+    else:
+        is_valid, errors = validate_gitlab_ci_yaml(content)
+
+    if getattr(args, "json", False):
+        print(json.dumps({"command": "validate", "file": "<stdin>", "is_valid": is_valid, "errors": errors}))
+    elif is_valid:
+        print("stdin: valid")
+    else:
+        print("stdin: INVALID")
+        for error in errors:
+            print(f"  - {error}")
+    return 0 if is_valid else 1
 
 
 def validate_handler(args: argparse.Namespace) -> int:
     """Handler for the 'validate' command."""
     logger.info("Starting bash2yaml validator...")
 
+    if getattr(args, "input_dir", None) == "-":
+        return validate_stdin_handler(args)
+
     # Resolve paths, using sensible defaults if optional paths are not provided
     in_dir = Path(args.input_dir).resolve()
-    out_dir = Path(args.output_dir).resolve()
+    # --out is accepted for symmetry with compile but validation only reads --in.
+    out_dir = Path(args.output_dir).resolve() if getattr(args, "output_dir", None) else in_dir
     parallelism = args.parallelism
 
     target = getattr(args, "resolved_target", None)
@@ -345,6 +466,7 @@ def validate_handler(args: argparse.Namespace) -> int:
         _output_path=out_dir,
         parallelism=parallelism,
         target=target,
+        as_json=bool(getattr(args, "json", False)),
     )
 
     target_name = target.display_name if target else "GitLab CI"
@@ -354,12 +476,70 @@ def validate_handler(args: argparse.Namespace) -> int:
 
 def drift_handler(args: argparse.Namespace) -> int:
     """Handler for the 'detect-drift' command."""
-    return run_detect_drift(Path(args.out))
+    return run_detect_drift(Path(args.out), as_json=bool(getattr(args, "json", False)))
+
+
+def traceless_handler(args: argparse.Namespace) -> int:
+    """Dispatch for the 'traceless' subcommand group."""
+    subcommand = args.traceless_command
+    state_dir = getattr(args, "state_dir", None)
+
+    if subcommand == "adopt":
+        target = getattr(args, "resolved_target", None)
+        return run_traceless_adopt(
+            in_file=Path(args.input_file),
+            state_dir=state_dir,
+            target=target,
+            dry_run=bool(getattr(args, "dry_run", False)),
+        )
+    if subcommand == "compile":
+
+        def _resolver(filename: str):
+            return resolve_target(
+                cli_target=getattr(args, "target", None),
+                config_target=config.target,
+                filename=filename,
+                directory=None,
+            )
+
+        return run_traceless_compile(
+            state_dir=state_dir,
+            target_resolver=_resolver,
+            check=bool(getattr(args, "check", False)),
+            force=bool(getattr(args, "force", False)),
+            dry_run=bool(getattr(args, "dry_run", False)),
+        )
+    if subcommand == "verify":
+        repo_root = Path(args.repo_root) if getattr(args, "repo_root", None) else None
+        return run_traceless_verify(
+            repo_root=repo_root,
+            strict=bool(getattr(args, "strict", False)),
+            allow_markers=bool(getattr(args, "allow_markers", False)),
+        )
+    if subcommand == "shred":
+        return run_traceless_shred(state_dir=state_dir, dry_run=bool(getattr(args, "dry_run", False)))
+    raise Bash2YamlError(f"Unknown traceless subcommand: {subcommand}")
 
 
 def decompile_handler(args: argparse.Namespace) -> int:
     """Handler for the 'decompile' command (file *or* folder)."""
     logger.info("Starting bash2yaml decompiler...")
+
+    if getattr(args, "traceless", False):
+        if not args.input_file:
+            raise Bash2YamlError("decompile --traceless requires --in-file (one YAML file at a time).")
+        jobs, scripts, dest = run_decompile_traceless(
+            input_yaml_path=Path(args.input_file).resolve(),
+            state_dir=getattr(args, "state_dir", None),
+            dry_run=bool(args.dry_run),
+            target=getattr(args, "resolved_target", None),
+            rewrite_yaml=not getattr(args, "no_rewrite", False),
+        )
+        logger.info("✅ Processed %s jobs; %s file(s) extracted to %s. Repo untouched.", jobs, scripts, dest)
+        return 0
+
+    if getattr(args, "no_rewrite", False) and not args.input_file:
+        raise Bash2YamlError("decompile --no-rewrite requires --in-file (one YAML file at a time).")
 
     out_dir = Path(args.output_dir).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)  # force folder semantics
@@ -373,6 +553,7 @@ def decompile_handler(args: argparse.Namespace) -> int:
             output_dir=out_dir,
             dry_run=dry_run,
             target=target,
+            rewrite_yaml=not getattr(args, "no_rewrite", False),
         )
         if dry_run:
             logger.info("DRY RUN: Would have processed %s jobs and created %s script(s).", jobs, scripts)
@@ -511,6 +692,31 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
 
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose (DEBUG) logging output.")
     parser.add_argument("-q", "--quiet", action="store_true", help="Disable output.")
+    parser.add_argument(
+        "--quiet-attribution",
+        action="store_true",
+        help="Never mention this tool by name in logs or generated output (volume is unchanged; see -q for that).",
+    )
+
+
+def add_json_argument(parser: argparse.ArgumentParser) -> None:
+    """Add the --json flag to a subparser (machine-readable stdout; logs move to stderr)."""
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable JSON report on stdout (logs go to stderr).",
+    )
+
+
+def add_state_dir_argument(parser: argparse.ArgumentParser) -> None:
+    """Add the --state-dir flag to a subparser."""
+    parser.add_argument(
+        "--state-dir",
+        dest="state_dir",
+        default=None,
+        help="Override where out-of-tree state is stored (default: per-repo dir under the user state home; "
+        "BASH2YAML_STATE_DIR also works).",
+    )
 
 
 def add_target_argument(parser: argparse.ArgumentParser) -> None:
@@ -592,13 +798,14 @@ def main() -> int:
     compile_parser.add_argument(
         "--in",
         dest="input_dir",
-        required=not bool(config.compile_input_dir),
-        help="Input directory containing the uncompiled `.gitlab-ci.yml` and other sources.",
+        required=False,
+        help="Input directory containing the uncompiled `.gitlab-ci.yml` and other sources. "
+        "Use `-` to compile a single YAML document from stdin to stdout.",
     )
     compile_parser.add_argument(
         "--out",
         dest="output_dir",
-        required=not bool(config.compile_output_dir),
+        required=False,
         help="Output directory for the compiled GitLab CI files.",
     )
     compile_parser.add_argument(
@@ -616,6 +823,33 @@ def main() -> int:
     compile_parser.add_argument(
         "--force", action="store_true", help="Force compilation even if no input changes detected"
     )
+    # Traceless / output-shaping flags (composable; --traceless is the macro).
+    compile_parser.add_argument(
+        "--no-header", action="store_true", help="Suppress the `# DO NOT EDIT` banner entirely."
+    )
+    compile_parser.add_argument(
+        "--no-fences",
+        action="store_true",
+        help="Suppress `# >>> BEGIN inline:` / `# <<< END inline` markers around inlined scripts.",
+    )
+    compile_parser.add_argument(
+        "--no-hash",
+        action="store_true",
+        help="Do not write .hash sidecar files (integrity state moves to the state dir when one is configured).",
+    )
+    compile_parser.add_argument(
+        "--in-place",
+        action="store_true",
+        help="Output directory is a live tree: skip the stray-file halt and overwrite YAML in place.",
+    )
+    compile_parser.add_argument(
+        "--traceless",
+        action="store_true",
+        help="Zero-footprint mode: implies --no-header --no-fences --no-hash --in-place and compiles "
+        "adopted files from the out-of-tree state dir (see `bash2yaml traceless --help`).",
+    )
+    add_state_dir_argument(compile_parser)
+    add_json_argument(compile_parser)
     add_common_arguments(compile_parser)
     add_autogit_argument(compile_parser)
     add_target_argument(compile_parser)
@@ -663,9 +897,21 @@ def main() -> int:
         "--out",
         dest="output_dir",
         default=config.decompile_output_dir,
-        required=not bool(config.decompile_output_dir),
-        help="Output directory (will be created). YAML and scripts are written here.",
+        required=False,
+        help="Output directory (will be created). YAML and scripts are written here. Not used with --traceless.",
     )
+    decompile_parser.add_argument(
+        "--traceless",
+        action="store_true",
+        help="Write extracted .sh files to the out-of-tree state dir instead of the working tree. "
+        "The input YAML is left untouched.",
+    )
+    decompile_parser.add_argument(
+        "--no-rewrite",
+        action="store_true",
+        help="Do not write a modified YAML that points at the extracted .sh files (pairs with --traceless).",
+    )
+    add_state_dir_argument(decompile_parser)
 
     add_common_arguments(decompile_parser)
     add_autogit_argument(decompile_parser)
@@ -683,6 +929,7 @@ def main() -> int:
         dest="out",
         help="Output path where generated files are.",
     )
+    add_json_argument(detect_drift_parser)
     add_common_arguments(detect_drift_parser)
     detect_drift_parser.set_defaults(func=drift_handler)
 
@@ -847,6 +1094,7 @@ def main() -> int:
         default=config.lint_timeout or 20,
         help="HTTP timeout per request in seconds (default: 20).",
     )
+    add_json_argument(lint_parser)
     add_common_arguments(lint_parser)
     lint_parser.set_defaults(func=lint_handler)
 
@@ -971,6 +1219,9 @@ def main() -> int:
     # Keep logging flags consistent with other commands
     install_pc.add_argument("-v", "--verbose", action="store_true", help="Enable verbose (DEBUG) logging output.")
     install_pc.add_argument("-q", "--quiet", action="store_true", help="Disable output.")
+    install_pc.add_argument(
+        "--quiet-attribution", action="store_true", help="Never mention this tool by name in output."
+    )
     install_pc.set_defaults(func=install_precommit_handler)
 
     # --- uninstall-precommit Command ---
@@ -990,6 +1241,9 @@ def main() -> int:
     )
     uninstall_pc.add_argument("-v", "--verbose", action="store_true", help="Enable verbose (DEBUG) logging output.")
     uninstall_pc.add_argument("-q", "--quiet", action="store_true", help="Disable output.")
+    uninstall_pc.add_argument(
+        "--quiet-attribution", action="store_true", help="Never mention this tool by name in output."
+    )
     uninstall_pc.set_defaults(func=uninstall_precommit_handler)
 
     # --- Doctor Command ---
@@ -1058,13 +1312,14 @@ def main() -> int:
         "--in",
         dest="input_dir",
         required=not bool(config.compile_input_dir),
-        help="Input directory containing the `.gitlab-ci.yml` and other sources.",
+        help="Input directory containing the `.gitlab-ci.yml` and other sources. "
+        "Use `-` to validate a single YAML document from stdin.",
     )
     validate_parser.add_argument(
         "--out",
         dest="output_dir",
-        required=not bool(config.compile_output_dir),
-        help="Output directory for the compiled GitLab CI files.",
+        required=False,
+        help="Accepted for symmetry with compile; validate only reads --in.",
     )
     validate_parser.add_argument(
         "--parallelism",
@@ -1072,6 +1327,7 @@ def main() -> int:
         default=config.parallelism,
         help="Number of files to validate in parallel (default: CPU count).",
     )
+    add_json_argument(validate_parser)
     add_common_arguments(validate_parser)
     add_target_argument(validate_parser)
     validate_parser.set_defaults(func=validate_handler)
@@ -1090,6 +1346,81 @@ def main() -> int:
     add_common_arguments(autogit_parser)
     autogit_parser.set_defaults(func=autogit_handler)
 
+    # --- Traceless Command Group ---
+    traceless_parser = subparsers.add_parser(
+        "traceless",
+        help="Zero-footprint workflow: state lives outside the repo; compiled YAML looks hand-written.",
+        description=(
+            "Traceless mode keeps all bash2yaml state (sources, hashes, config) outside the working tree "
+            "and emits YAML with no headers, fences, or hash sidecars. See docs/usage/traceless.md."
+        ),
+    )
+    traceless_subparsers = traceless_parser.add_subparsers(dest="traceless_command", required=True)
+
+    tl_adopt = traceless_subparsers.add_parser(
+        "adopt",
+        help="Decompile existing CI YAML into out-of-tree state and verify the round trip. Repo untouched.",
+    )
+    tl_adopt.add_argument(
+        "--in-file",
+        dest="input_file",
+        required=True,
+        help="CI YAML file to adopt (e.g., .gitlab-ci.yml).",
+    )
+    add_state_dir_argument(tl_adopt)
+    add_target_argument(tl_adopt)
+    add_common_arguments(tl_adopt)
+    tl_adopt.set_defaults(func=traceless_handler)
+
+    tl_compile = traceless_subparsers.add_parser(
+        "compile",
+        help="Recompile adopted files in place from state-dir sources (same as `compile --traceless`).",
+    )
+    tl_compile.add_argument(
+        "--check",
+        action="store_true",
+        help="Compile to memory and diff against the working tree; exit 1 if anything is out of date.",
+    )
+    tl_compile.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite files even when they drifted from the last recorded compile.",
+    )
+    add_state_dir_argument(tl_compile)
+    add_target_argument(tl_compile)
+    add_common_arguments(tl_compile)
+    tl_compile.set_defaults(func=traceless_handler)
+
+    tl_verify = traceless_subparsers.add_parser(
+        "verify",
+        help="Check the traceless contract (exit 0 clean / 1 violation / 2 setup error).",
+    )
+    tl_verify.add_argument(
+        "--strict",
+        action="store_true",
+        help="Also fail on artifacts that are tracked/staged in git even if absent from the working tree.",
+    )
+    tl_verify.add_argument(
+        "--allow-markers",
+        action="store_true",
+        help="Permit BEGIN/END inline markers and compiled-with notices in checked-in YAML.",
+    )
+    tl_verify.add_argument(
+        "--repo-root",
+        default=None,
+        help="Repository root to verify (defaults to the enclosing git repo).",
+    )
+    add_common_arguments(tl_verify)
+    tl_verify.set_defaults(func=traceless_handler)
+
+    tl_shred = traceless_subparsers.add_parser(
+        "shred",
+        help="Remove all out-of-tree state for this repo. The working tree is unchanged.",
+    )
+    add_state_dir_argument(tl_shred)
+    add_common_arguments(tl_shred)
+    tl_shred.set_defaults(func=traceless_handler)
+
     get_pm().hook.register_cli(subparsers=subparsers, config=config)
 
     if argcomplete:
@@ -1106,11 +1437,15 @@ def main() -> int:
     if args.command == "compile":
         args.input_dir = args.input_dir or config.input_dir
         args.output_dir = args.output_dir or config.output_dir
-        # Validate required arguments after merging
-        if not args.input_dir:
-            compile_parser.error("argument --in is required")
-        if not args.output_dir:
-            compile_parser.error("argument --out is required")
+        is_traceless = args.traceless or os.environ.get("BASH2YAML_TRACELESS") == "1"
+        is_stdin = args.input_dir == "-"
+        # Validate required arguments after merging. Traceless reads from the
+        # state dir, stdin mode writes to stdout — neither needs --in/--out.
+        if not is_traceless:
+            if not args.input_dir:
+                compile_parser.error("argument --in is required (or use --traceless / set input_dir in config)")
+            if not args.output_dir and not is_stdin:
+                compile_parser.error("argument --out is required (or use --traceless / set output_dir in config)")
     elif args.command == "decompile":
         if hasattr(args, "input_file"):
             args_input_file = args.input_file
@@ -1131,8 +1466,8 @@ def main() -> int:
         # Validate required arguments after merging
         if not args.input_file and not args.input_folder:
             decompile_parser.error("argument --input-folder or --input-file is required")
-        if not args.output_dir:
-            decompile_parser.error("argument --out is required")
+        if not args.output_dir and not args.traceless:
+            decompile_parser.error("argument --out is required (not needed with --traceless)")
     elif args.command == "clean":
         args.output_dir = args.output_dir or config.output_dir
         if not args.output_dir:
@@ -1155,6 +1490,19 @@ def main() -> int:
         args.input_dir = args.input_dir or config.input_dir
         if not args.input_dir:
             lint_parser.error("argument --in is required")
+    elif args.command == "validate":
+        args.input_dir = args.input_dir or config.compile_input_dir
+        args.output_dir = args.output_dir or config.compile_output_dir
+        if not args.input_dir:
+            validate_parser.error(
+                "argument --in is required (or set input_dir in your bash2yaml config / BASH2YAML_INPUT_DIR)"
+            )
+    elif args.command == "detect-drift":
+        args.out = args.out or config.output_dir
+        if not args.out:
+            detect_drift_parser.error(
+                "argument --out is required (or set output_dir in your bash2yaml config / BASH2YAML_OUTPUT_DIR)"
+            )
     # install-precommit / uninstall-precommit / doctor / graph / show-config / autogit do not merge config
 
     # Resolve target for target-aware commands
@@ -1178,6 +1526,17 @@ def main() -> int:
     if hasattr(args, "dry_run"):
         args.dry_run = args.dry_run or config.dry_run or False
 
+    # --- Quiet attribution (no tool self-references in any output) ---
+    quiet_attribution = (
+        getattr(args, "quiet_attribution", False)
+        or config.get_bool("quiet_attribution")
+        or config.get_bool("quiet_attribution", section="traceless")
+        or False
+    )
+    if quiet_attribution:
+        # Must happen before logging config so handlers bind the scrubbed streams.
+        enable_quiet_attribution()
+
     # --- Setup Logging ---
     if args.verbose:
         log_level = "DEBUG"
@@ -1185,7 +1544,9 @@ def main() -> int:
         log_level = "CRITICAL"
     else:
         log_level = "INFO"
-    logging.config.dictConfig(generate_config(level=log_level))
+    # In --json mode stdout is reserved for the JSON report.
+    log_stream = "ext://sys.stderr" if getattr(args, "json", False) else "ext://sys.stdout"
+    logging.config.dictConfig(generate_config(level=log_level, stream=log_stream))
 
     if not hasattr(args, "func"):
         print("Command required.")
@@ -1193,7 +1554,7 @@ def main() -> int:
     return run_cli(args)
 
 
-def run_cli(args: argparse.Namespace) -> ExitCode:
+def run_cli(args: argparse.Namespace) -> int:
     try:
         for _ in get_pm().hook.before_command(args=args):
             pass
@@ -1203,6 +1564,10 @@ def run_cli(args: argparse.Namespace) -> ExitCode:
         for _ in get_pm().hook.after_command(result=rc, args=args):
             pass
 
+        # Handlers return distinct non-zero codes for "command ran, found problems"
+        # (e.g. lint failures, drift detected). Propagate them to the shell.
+        if isinstance(rc, int) and rc != 0:
+            return rc
         return ExitCode.OK
 
     except Bash2YamlError as e:

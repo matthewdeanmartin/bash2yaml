@@ -74,6 +74,7 @@ class InteractiveInterface:
             ("18", "trigger-pipelines", "Trigger pipelines in GitLab projects"),
             ("19", "run", "Run .gitlab-ci.yml file locally (best effort)"),
             ("20", "autogit", "Manually trigger autogit process"),
+            ("21", "traceless", "Zero-footprint workflow: adopt/compile/verify/shred (state lives outside the repo)"),
             ("q", "quit", "Exit interactive interface"),
         ]
 
@@ -532,6 +533,41 @@ class InteractiveInterface:
 
         return params
 
+    def handle_traceless_command(self) -> dict[str, Any]:
+        """Handle traceless command group configuration."""
+        self.console.print("\n[bold cyan]Traceless Command Configuration[/bold cyan]")
+        self.console.print(
+            "[dim]State (sources, hashes) lives outside the repo; compiled YAML looks hand-written.[/dim]"
+        )
+
+        params: dict[str, Any] = {}
+
+        subcommand = Prompt.ask(
+            "Traceless action",
+            choices=["adopt", "compile", "verify", "shred"],
+            default="verify",
+        )
+        params["traceless_command"] = subcommand
+
+        if subcommand == "adopt":
+            params["input_file"] = Prompt.ask("CI YAML file to adopt", default=".gitlab-ci.yml")
+        elif subcommand == "compile":
+            params["check"] = Confirm.ask("Check only (diff against working tree, write nothing)?", default=False)
+            params["force"] = Confirm.ask("Force overwrite even if files drifted?", default=False)
+        elif subcommand == "verify":
+            params["strict"] = Confirm.ask("Strict mode (also check tracked/staged artifacts)?", default=True)
+            params["allow_markers"] = Confirm.ask("Allow BEGIN/END inline markers?", default=False)
+            params["repo_root"] = None
+
+        if subcommand in ("adopt", "compile", "shred"):
+            state_dir = Prompt.ask("State directory override (optional, press Enter for default)", default="")
+            params["state_dir"] = state_dir if state_dir else None
+
+        # Common options
+        params.update(self.get_common_options())
+
+        return params
+
     def handle_autogit_command(self) -> dict[str, Any]:
         """Handle autogit command configuration."""
         self.console.print("\n[bold cyan]Autogit Command Configuration[/bold cyan]")
@@ -590,6 +626,7 @@ class InteractiveInterface:
             lint_handler,
             map_deploy_handler,
             show_config_handler,
+            traceless_handler,
             trigger_pipelines_handler,
             uninstall_precommit_handler,
             validate_handler,
@@ -620,6 +657,7 @@ class InteractiveInterface:
             "trigger-pipelines": trigger_pipelines_handler,
             "run": best_effort_run_handler,
             "autogit": autogit_handler,
+            "traceless": traceless_handler,
         }
 
         handler = handlers.get(command)
@@ -669,6 +707,7 @@ class InteractiveInterface:
                     "18": ("trigger-pipelines", self.handle_trigger_pipelines_command),
                     "19": ("run", self.handle_run_command),
                     "20": ("autogit", self.handle_autogit_command),
+                    "21": ("traceless", self.handle_traceless_command),
                 }
 
                 if choice in command_map:

@@ -470,8 +470,13 @@ def run_decompile_gitlab_file(
     dry_run: bool = False,
     minimum_lines: int = 1,
     target: BaseTarget | None = None,
+    rewrite_yaml: bool = True,
 ) -> tuple[int, int, Path]:
     """Decompile a *single* CI YAML file into scripts + modified YAML in *output_dir*.
+
+    With ``rewrite_yaml=False`` (the ``--no-rewrite`` flag), scripts are still
+    extracted but no modified YAML is written — the input YAML's content is
+    only read, never replicated or rewritten.
 
     Returns (jobs_processed, total_files_created, output_yaml_path).
     """
@@ -538,7 +543,7 @@ def run_decompile_gitlab_file(
 
     if total_files_created > 0:
         logger.info("Decompileded %s file(s) from %s job(s).", total_files_created, jobs_processed)
-        if not dry_run:
+        if not dry_run and rewrite_yaml:
             logger.info("Writing modified YAML to: %s", short_path(output_yaml_path))
             output_yaml_path.parent.mkdir(parents=True, exist_ok=True)
             body_buf = io.StringIO()
@@ -568,6 +573,59 @@ def run_decompile_gitlab_file(
         generate_mock_ci_variables_script(str(output_yaml_path.parent / "mock_ci_variables.sh"))
 
     return jobs_processed, total_files_created, output_yaml_path
+
+
+def run_decompile_traceless(
+    *,
+    input_yaml_path: Path,
+    state_dir: Path | str | None = None,
+    dry_run: bool = False,
+    minimum_lines: int = 1,
+    target: BaseTarget | None = None,
+    rewrite_yaml: bool = False,
+) -> tuple[int, int, Path]:
+    """Decompile a CI YAML file into the out-of-tree state directory.
+
+    The repo working tree is left completely untouched: extracted ``.sh``
+    sources (and, when ``rewrite_yaml`` is True, the rewritten YAML) land
+    under ``<state-dir>/sources/`` mirroring the file's repo-relative path.
+
+    Returns (jobs_processed, total_files_created, output_dir_used).
+    """
+    from bash2yaml.utils.state_store import StateStore, find_repo_root
+
+    input_yaml_path = input_yaml_path.resolve()
+    repo_root = find_repo_root(input_yaml_path.parent) or input_yaml_path.parent
+    store = StateStore.for_repo(repo_root, state_dir)
+
+    try:
+        rel = input_yaml_path.relative_to(repo_root)
+    except ValueError:
+        rel = Path(input_yaml_path.name)
+
+    dest_dir = (store.sources_dir / rel.parent).resolve()
+    jobs, created, _out_yaml = run_decompile_gitlab_file(
+        input_yaml_path=input_yaml_path,
+        output_dir=dest_dir,
+        dry_run=dry_run,
+        minimum_lines=minimum_lines,
+        target=target,
+        rewrite_yaml=rewrite_yaml,
+    )
+
+    if not dry_run:
+        store.record_source(
+            str(rel),
+            {
+                "uncompiled": str(Path(StateStore.SOURCES_DIR) / rel).replace("\\", "/"),
+                "rewrite_yaml": rewrite_yaml,
+            },
+        )
+        store.record_hash(str(rel), input_yaml_path.read_text(encoding="utf-8"))
+        store.save()
+        logger.info("Extracted sources stored in: %s", dest_dir)
+
+    return jobs, created, dest_dir
 
 
 def run_decompile_gitlab_tree(

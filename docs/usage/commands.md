@@ -42,8 +42,12 @@ The `compile` command is central to the `bash2yaml` workflow.
 - `--watch`: Enables watch mode. The command will continue running and automatically re-compile whenever a source file
   changes.
 - `--dry-run`: Simulates the compilation process and reports what would be changed without writing any files.
+- `--json`: Emit a machine-readable JSON report on stdout (logs move to stderr). Useful for scripting.
+- `--no-header` / `--no-fences` / `--no-hash` / `--in-place` / `--state-dir <path>` / `--traceless`:
+  output-shaping flags for [traceless mode](traceless.md).
 - `-v, --verbose`: Enables detailed DEBUG level logging.
 - `-q, --quiet`: Suppresses all output except for critical errors.
+- `--quiet-attribution`: Never mention the tool by name in logs or generated output.
 
 ### CLI Usage and Examples
 
@@ -59,6 +63,13 @@ bash2yaml compile --in src --out compiled --watch
 
 # Perform a dry run to see what files would be created or updated
 bash2yaml compile --in src --out compiled --dry-run
+
+# Compile a single YAML document from stdin to stdout (scripts resolve
+# relative to the current directory; no banner, no hash sidecar)
+cat ci.yml | bash2yaml compile --in -
+
+# Machine-readable result for scripting
+bash2yaml compile --in src --out compiled --json | jq .files_written
 ```
 
 ### Configuration (`.bash2yaml.toml`)
@@ -380,6 +391,17 @@ to deploy your code to the other locations on your workstation.
 - **Description**: A utility to fetch a specific directory from a remote Git repository and place it in a local
   directory. It can clone via SSH or download an archive over HTTP/S.
 - **Usage**: `bash2yaml copy2local --repo-url <url> --branch <branch> --source-dir <path> --copy-dir <path>`
+
+-----
+
+## Command group: `traceless`
+
+- **Description**: Runs the whole workflow with zero footprint in the working tree — state lives in a per-repo
+  directory under your home, and compiled YAML carries no headers, fences, or `.hash` sidecars. Subcommands:
+  `adopt`, `compile`, `verify`, `shred`.
+- **Workflow**: For trying bash2yaml on a repo before the team has bought in, or contributing to repos that
+  won't accept tool artifacts. See the dedicated [Traceless Mode](traceless.md) page.
+- **Usage**: `bash2yaml traceless adopt --in-file .gitlab-ci.yml`, then `bash2yaml traceless compile`
 
 -----
 

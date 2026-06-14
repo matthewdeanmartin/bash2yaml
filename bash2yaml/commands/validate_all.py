@@ -114,11 +114,28 @@ def print_validation_summary(results: list[ValidationResult]) -> None:
         print(f"\n{Colors.OKGREEN}{Colors.BOLD}✓ All files are valid!{Colors.ENDC}")
 
 
+def results_to_json(results: list[ValidationResult]) -> str:
+    """Serialize validation results to the same shape as write_results_to_output."""
+    output_data: dict[str, Any] = {
+        "command": "validate",
+        "summary": {
+            "total_files": len(results),
+            "valid_files": sum(1 for r in results if r.is_valid),
+            "invalid_files": sum(1 for r in results if not r.is_valid),
+        },
+        "results": [
+            {"file": str(result.file_path), "is_valid": result.is_valid, "errors": result.errors} for result in results
+        ],
+    }
+    return orjson.dumps(output_data).decode()
+
+
 def run_validate_all(
     input_dir: Path,
     _output_path: Path,
     parallelism: int | None = None,
     target: BaseTarget | None = None,
+    as_json: bool = False,
 ) -> int:
     """
     Orchestrate the validation of all YAML files in input directory.
@@ -128,36 +145,44 @@ def run_validate_all(
         _output_path: Path to write validation results.
         parallelism: Number of parallel processes (None for auto-detect).
         target: Which ci syntax
+        as_json: Emit a machine-readable JSON report on stdout instead of the human report.
 
     Returns:
         Exit code (0 for success, 1 for validation failures, 2 for errors).
     """
+    say = (lambda *_a, **_k: None) if as_json else print
     try:
         # Validate input directory exists
         if not input_dir.exists():
-            print(f"{Colors.FAIL}Error: Input directory does not exist: {input_dir}{Colors.ENDC}")
+            say(f"{Colors.FAIL}Error: Input directory does not exist: {input_dir}{Colors.ENDC}")
+            if as_json:
+                print(orjson.dumps({"command": "validate", "error": f"Input directory does not exist: {input_dir}"}).decode())
             return 2
 
         if not input_dir.is_dir():
-            print(f"{Colors.FAIL}Error: Input path is not a directory: {input_dir}{Colors.ENDC}")
+            say(f"{Colors.FAIL}Error: Input path is not a directory: {input_dir}{Colors.ENDC}")
+            if as_json:
+                print(orjson.dumps({"command": "validate", "error": f"Input path is not a directory: {input_dir}"}).decode())
             return 2
 
         # Find all YAML files
         yaml_files = find_yaml_files(input_dir)
 
         if not yaml_files:
-            print(f"{Colors.WARNING}Warning: No YAML files found in {input_dir}{Colors.ENDC}")
+            say(f"{Colors.WARNING}Warning: No YAML files found in {input_dir}{Colors.ENDC}")
+            if as_json:
+                print(results_to_json([]))
             return 0
 
-        print(f"{Colors.OKCYAN}Found {len(yaml_files)} YAML files to validate{Colors.ENDC}")
+        say(f"{Colors.OKCYAN}Found {len(yaml_files)} YAML files to validate{Colors.ENDC}")
 
         # Determine parallelism strategy
         if len(yaml_files) <= 5:
             # Serial processing for small number of files
-            print(f"{Colors.OKBLUE}Using serial processing{Colors.ENDC}")
+            say(f"{Colors.OKBLUE}Using serial processing{Colors.ENDC}")
             results = []
             for yaml_file in yaml_files:
-                print(f"Validating: {yaml_file}")
+                say(f"Validating: {yaml_file}")
                 result = validate_single_file(yaml_file, target=target)
                 results.append(result)
         else:
@@ -167,7 +192,7 @@ def run_validate_all(
 
             # Parallel processing for larger number of files
             max_workers = parallelism if parallelism else os.cpu_count()
-            print(f"{Colors.OKBLUE}Using parallel processing with {max_workers} workers{Colors.ENDC}")
+            say(f"{Colors.OKBLUE}Using parallel processing with {max_workers} workers{Colors.ENDC}")
 
             results = []
             with ProcessPoolExecutor(max_workers=max_workers) as executor:
@@ -185,9 +210,9 @@ def run_validate_all(
                         status = (
                             f"{Colors.OKGREEN}✓{Colors.ENDC}" if result.is_valid else f"{Colors.FAIL}✗{Colors.ENDC}"
                         )
-                        print(f"{status} {yaml_file}")
+                        say(f"{status} {yaml_file}")
                     except Exception as e:
-                        print(f"{Colors.FAIL}✗ {yaml_file} - Exception: {e}{Colors.ENDC}")
+                        say(f"{Colors.FAIL}✗ {yaml_file} - Exception: {e}{Colors.ENDC}")
                         results.append(
                             ValidationResult(
                                 file_path=yaml_file, is_valid=False, errors=[f"Processing exception: {str(e)}"]
@@ -197,17 +222,16 @@ def run_validate_all(
         # Sort results by file path for consistent output
         results.sort(key=lambda r: r.file_path)
 
-        # Write results to output file
-        # write_results_to_output(results, output_path)
-        # print(f"\n{Colors.OKCYAN}Results written to: {output_path}{Colors.ENDC}")
-
-        # Print summary
-        print_validation_summary(results)
+        if as_json:
+            print(results_to_json(results))
+        else:
+            # Print summary
+            print_validation_summary(results)
 
         # Return appropriate exit code
         invalid_count = sum(1 for r in results if not r.is_valid)
         return 1 if invalid_count > 0 else 0
 
     except Exception as e:
-        print(f"{Colors.FAIL}Error during validation: {e}{Colors.ENDC}")
+        say(f"{Colors.FAIL}Error during validation: {e}{Colors.ENDC}")
         raise

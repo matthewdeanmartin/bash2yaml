@@ -1,5 +1,9 @@
 """
 Textual TUI for bash2yaml - Interactive terminal interface
+
+**Experimental** (tier 3 per spec/adr-001-ui-surface-tiers.md): command
+coverage may lag the CLI; prefer `bash2yaml-interactive` for a supported
+guided interface.
 """
 
 from __future__ import annotations
@@ -1171,7 +1175,7 @@ class Bash2YamlTUI(App):
     }
     """
 
-    TITLE = f"bash2yaml TUI v{__about__.__version__}"
+    TITLE = f"bash2yaml TUI v{__about__.__version__} (experimental — see bash2yaml-interactive for full coverage)"
 
     BINDINGS = [
         Binding("ctrl+q", "quit", "Quit", priority=True),

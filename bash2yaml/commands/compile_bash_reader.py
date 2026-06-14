@@ -82,15 +82,20 @@ def secure_join(
     return candidate
 
 
-def read_bash_script(path: Path) -> str:
+def read_bash_script(path: Path, allowed_root: Path | None = None) -> str:
     """
     Reads a bash script and inlines any sourced files.
     This is the main entry point.
+
+    Args:
+        path: Script to read.
+        allowed_root: Directory sourced files may not escape (default: cwd).
+            Traceless mode passes the out-of-tree state dir here.
     """
     logger.debug(f"Reading and inlining script from: {path}")
 
     # Use the recursive inliner to do all the work, including shebang handling.
-    content = inline_bash_source(path)
+    content = inline_bash_source(path, allowed_root=allowed_root)
 
     # GitLab `$[[ inputs.x ]]` interpolation passes through verbatim; the
     # gitlab-interpolation pragma line itself is a compiler directive and is
@@ -291,13 +296,19 @@ def inline_bash_source(
         if in_do_not_inline_block:
             raise PragmaError(f"Unclosed 'start-do-not-inline' pragma in file: {short_path(main_script_path)}")
 
+    except (Bash2YamlError, FileNotFoundError, RecursionError):
+        # Typed errors already carry a useful message and exit-code mapping.
+        raise
     except Exception as e:
         # Propagate after logging context
         logger.exception("Failed to read or process %s", short_path(main_script_path))
-        logger.exception(e)
         if "PYTEST_CURRENT_TEST" in os.environ:
             raise
-        raise Bash2YamlError() from e
+        raise Bash2YamlError(
+            f"Failed to inline '{short_path(main_script_path)}': {e}\n"
+            "  - If a `source`/`.` line in this script should be kept as-is instead of inlined, "
+            "append `# Pragma: do-not-inline` to that line."
+        ) from e
 
     final = "".join(final_content_lines)
     if not final.endswith("\n"):

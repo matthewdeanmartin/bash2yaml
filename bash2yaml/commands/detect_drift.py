@@ -17,6 +17,7 @@ useful for integration into CI/CD pipelines to prevent unintended changes.
 from __future__ import annotations
 
 import base64
+import json
 import logging
 from collections.abc import Generator
 from pathlib import Path
@@ -80,6 +81,7 @@ def find_hash_files(search_paths: list[Path]) -> Generator[Path, None, None]:
 
 def run_detect_drift(
     output_path: Path,
+    as_json: bool = False,
 ) -> int:
     """
     Checks for manual edits (drift) in compiled files by comparing them against their .hash files.
@@ -90,6 +92,7 @@ def run_detect_drift(
 
     Args:
         output_path: The main output directory containing compiled files (e.g., .gitlab-ci.yml).
+        as_json: Emit a machine-readable JSON report on stdout instead of the human report.
 
     Returns:
         int: Returns 0 if no drift is detected.
@@ -97,15 +100,21 @@ def run_detect_drift(
     """
     drift_detected_count = 0
     error_count = 0
+    drifted_files: list[str] = []
     search_paths = [output_path]
 
     hash_files = list(find_hash_files(search_paths))
 
     if not hash_files:
-        logger.warning("No .hash files found to check for drift.")
+        if as_json:
+            print(json.dumps({"command": "detect-drift", "hash_files": 0, "drifted_files": [], "errors": 0}))
+        else:
+            print(f"No .hash files found under {short_path(output_path)}; nothing to check for drift.")
+            print("Run `compile` first, or check that --out points at the compiled output directory.")
         return 0  # No hashes means no drift to detect.
 
-    print(f"Found {len(hash_files)} hash file(s). Checking for drift...")
+    if not as_json:
+        print(f"Found {len(hash_files)} hash file(s). Checking for drift...")
 
     for hash_file in hash_files:
         source_file = get_source_file_from_hash(hash_file, output_path)
@@ -130,6 +139,9 @@ def run_detect_drift(
 
         if current_content != decoded_content:
             drift_detected_count += 1
+            drifted_files.append(str(source_file))
+            if as_json:
+                continue
             diff_text = generate_pretty_diff(current_content, decoded_content, source_file)
 
             # Print a clear, formatted report for the user, adapting to color support.
@@ -142,6 +154,19 @@ def run_detect_drift(
 
             if Colors.ENDC:
                 print(f"{Colors.RED_BG}{' ' * 80}{Colors.ENDC}")
+
+    if as_json:
+        print(
+            json.dumps(
+                {
+                    "command": "detect-drift",
+                    "hash_files": len(hash_files),
+                    "drifted_files": drifted_files,
+                    "errors": error_count,
+                }
+            )
+        )
+        return 1 if drift_detected_count > 0 or error_count > 0 else 0
 
     if drift_detected_count > 0 or error_count > 0:
         # Print summary, adapting to color support

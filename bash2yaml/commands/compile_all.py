@@ -6,6 +6,7 @@ import base64
 import io
 import logging
 import multiprocessing
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +26,9 @@ from bash2yaml.errors.exceptions import Bash2YamlError, CompileError, Validation
 from bash2yaml.plugins import get_pm
 from bash2yaml.targets.base import BaseTarget
 from bash2yaml.utils import diff_helpers
+from bash2yaml.utils.attribution import quiet_attribution_enabled
 from bash2yaml.utils.dotenv import parse_env_file
+from bash2yaml.utils.state_store import StateStore, find_repo_root
 from bash2yaml.utils.gitlab_components import split_component_template
 from bash2yaml.utils.parse_bash import extract_script_path
 from bash2yaml.utils.utils import remove_leading_blank_lines, short_path
@@ -35,7 +38,41 @@ from bash2yaml.utils.yaml_file_same import normalize_for_compare, yaml_is_same
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["run_compile_all"]
+__all__ = ["CompileOptions", "run_compile_all"]
+
+
+@dataclass(frozen=True)
+class CompileOptions:
+    """Composable output-shaping options for compilation.
+
+    The defaults reproduce the standard workflow. Traceless mode
+    (``--traceless``) is the composition: no header, no fences, no hash
+    sidecars, state kept out of tree.
+
+    Must stay pickle-safe: instances cross the multiprocessing boundary.
+    """
+
+    emit_header: bool = True  # --no-header
+    emit_fences: bool = True  # --no-fences
+    write_hashes: bool = True  # --no-hash (sidecars; state-dir hashes used instead when set)
+    in_place: bool = False  # --in-place: output dir is a live tree, skip stray-file halt
+    force: bool = False  # overwrite even when integrity records are missing/mismatched
+    state_dir: str | None = None  # --state-dir / BASH2YAML_STATE_DIR
+
+    @classmethod
+    def traceless(cls, state_dir: str | None = None, force: bool = False) -> CompileOptions:
+        """The --traceless macro: compose all the no-footprint flags."""
+        return cls(
+            emit_header=False,
+            emit_fences=False,
+            write_hashes=False,
+            in_place=True,
+            force=force,
+            state_dir=state_dir,
+        )
+
+
+DEFAULT_COMPILE_OPTIONS = CompileOptions()
 
 
 def infer_cli(
@@ -58,12 +95,16 @@ def get_banner(inferred_cli_command: str) -> str:
     if config.custom_header:
         return config.custom_header + "\n"
 
+    if quiet_attribution_enabled():
+        # No tool name, no CLI echo (the command line mentions the tool).
+        return "# DO NOT EDIT\n# This is a generated file. Recompile instead of editing it.\n\n"
+
     # Original banner content as fallback
     return f"""# DO NOT EDIT
 # This is a compiled file, compiled with bash2yaml
 # Recompile instead of editing this file.
 #
-# Compiled with the command: 
+# Compiled with the command:
 #     {inferred_cli_command}
 
 """
@@ -155,7 +196,10 @@ def compact_runs_to_literal(items: list[Any], *, min_lines: int = 2) -> list[Any
 
 
 def process_script_list(
-    script_list: list[TaggedScalar | str] | CommentedSeq | str, scripts_root: Path, collapse_lists: bool = True
+    script_list: list[TaggedScalar | str] | CommentedSeq | str,
+    scripts_root: Path,
+    collapse_lists: bool = True,
+    emit_fences: bool = True,
 ) -> list[Any] | CommentedSeq | LiteralScalarString:
     """Process a script list, inlining shell files while preserving YAML features.
 
@@ -170,6 +214,7 @@ def process_script_list(
         script_list (list[TaggedScalar | str] | CommentedSeq | str): YAML script lines.
         scripts_root (Path): Root directory used to resolve script paths for inlining.
         collapse_lists (bool): Turn lists into string block. Safe if it is indeed a script.
+        emit_fences (bool): Wrap inlined scripts in BEGIN/END marker comments (off in traceless mode).
 
     Returns:
         list[Any] | CommentedSeq | LiteralScalarString: Processed script block. Returns a
@@ -211,24 +256,45 @@ def process_script_list(
             else:
                 rel_path = script_path_str.strip()
             script_path = scripts_root / rel_path
+            # Scripts may not source files that escape the project. When the
+            # scripts root lives outside the cwd (traceless state dir), that
+            # root is the security boundary instead.
+            allowed_root = Path.cwd()
             try:
-                bash_code = read_bash_script(script_path)
+                scripts_root.resolve().relative_to(allowed_root.resolve())
+            except ValueError:
+                allowed_root = scripts_root.resolve()
+            try:
+                bash_code = read_bash_script(script_path, allowed_root=allowed_root)
             except (FileNotFoundError, ValueError) as e:
-                logger.warning(f"Could not inline script '{script_path_str}': {e}. Preserving original line.")
-                raise Bash2YamlError(
-                    f"Could not inline script '{script_path_str}': {e}. Preserving original line."
-                ) from e
+                message = (
+                    f"Could not inline script '{script_path_str}': {e}\n"
+                    f"  - Expected to find it at '{script_path}' (paths resolve relative to the input directory).\n"
+                    f"  - If this line is plain shell and not a script reference, append `# Pragma: do-not-inline` to it."
+                )
+                logger.warning(message)
+                raise Bash2YamlError(message) from e
             bash_lines = bash_code.splitlines()
+            # Blank edges are read artifacts (stripped shebang, trailing newline);
+            # they'd force ugly explicit-indent literal blocks (`|2-`) in the YAML.
+            while bash_lines and not bash_lines[0].strip():
+                bash_lines.pop(0)
+            while bash_lines and not bash_lines[-1].strip():
+                bash_lines.pop()
             logger.debug(
                 "Inlining script '%s' (%d lines).",
                 Path(rel_path).as_posix(),
                 len(bash_lines),
             )
-            begin_marker = f"# >>> BEGIN inline: {Path(rel_path).as_posix()}"
-            end_marker = "# <<< END inline"
-            processed_items.append(begin_marker)
-            processed_items.extend(bash_lines)
-            processed_items.append(end_marker)
+            if emit_fences:
+                begin_marker = f"# >>> BEGIN inline: {Path(rel_path).as_posix()}"
+                end_marker = "# <<< END inline"
+                processed_items.append(begin_marker)
+                processed_items.extend(bash_lines)
+                processed_items.append(end_marker)
+            else:
+                # Traceless: the inlined bash appears with no attribution markers.
+                processed_items.extend(bash_lines)
 
         else:
             # Check for artifact inlining pragma
@@ -280,7 +346,9 @@ def process_script_list(
     return rebuild_seq_like(compact_items, was_commented_seq, original_seq)
 
 
-def process_job(job_data: dict, scripts_root: Path, target: BaseTarget | None = None) -> int:
+def process_job(
+    job_data: dict, scripts_root: Path, target: BaseTarget | None = None, emit_fences: bool = True
+) -> int:
     """Processes a single job definition to inline scripts."""
     if target is not None:
         script_keys = target.script_keys()
@@ -289,7 +357,7 @@ def process_job(job_data: dict, scripts_root: Path, target: BaseTarget | None = 
     found = 0
     for script_key in script_keys:
         if script_key in job_data:
-            result = process_script_list(job_data[script_key], scripts_root)
+            result = process_script_list(job_data[script_key], scripts_root, emit_fences=emit_fences)
             if result != job_data[script_key]:
                 job_data[script_key] = result
                 found += 1
@@ -325,6 +393,7 @@ def inline_gitlab_scripts(
     global_vars: dict[str, str],
     input_dir: Path,  # Path to look for job_name_variables.sh files
     target: BaseTarget | None = None,
+    emit_fences: bool = True,
 ) -> tuple[int, str]:
     """
     Loads a CI YAML file, inlines scripts, merges global and job-specific variables,
@@ -371,7 +440,7 @@ def inline_gitlab_scripts(
         for section in sections:
             is_top_level_list = isinstance(section.lines, list) and section.parent is data
             collapse = not is_top_level_list
-            result = process_script_list(section.lines, scripts_root, collapse_lists=collapse)
+            result = process_script_list(section.lines, scripts_root, collapse_lists=collapse, emit_fences=emit_fences)
             if result != section.lines:
                 section.parent[section.script_key] = result
                 inlined_count += 1
@@ -398,7 +467,7 @@ def inline_gitlab_scripts(
         for name in ["after_script", "before_script"]:
             if name in data:
                 logger.warning(f"Processing top-level '{name}' section, even though gitlab has deprecated them.")
-                result = process_script_list(data[name], scripts_root)
+                result = process_script_list(data[name], scripts_root, emit_fences=emit_fences)
                 if result != data[name]:
                     data[name] = result
 
@@ -424,7 +493,7 @@ def inline_gitlab_scripts(
 
             if isinstance(job_data, list):
                 logger.debug(f"Processing top-level list key '{job_name}', potentially a script anchor.")
-                result = process_script_list(job_data, scripts_root, collapse_lists=False)
+                result = process_script_list(job_data, scripts_root, collapse_lists=False, emit_fences=emit_fences)
                 if result != job_data:
                     data[job_name] = result
                     inlined_count += 1
@@ -452,17 +521,17 @@ def inline_gitlab_scripts(
                     or "pre_get_sources_script" in job_data
                 ):
                     logger.debug(f"Processing job: {job_name}")
-                    inlined_count += process_job(job_data, scripts_root)
+                    inlined_count += process_job(job_data, scripts_root, emit_fences=emit_fences)
                 if "hooks" in job_data:
                     if isinstance(job_data["hooks"], dict) and "pre_get_sources_script" in job_data["hooks"]:
                         logger.debug(f"Processing pre_get_sources_script: {job_name}")
-                        inlined_count += process_job(job_data["hooks"], scripts_root)
+                        inlined_count += process_job(job_data["hooks"], scripts_root, emit_fences=emit_fences)
                 if "run" in job_data:
                     if isinstance(job_data["run"], list):
                         for item in job_data["run"]:
                             if isinstance(item, dict) and "script" in item:
                                 logger.debug(f"Processing run/script: {job_name}")
-                                inlined_count += process_job(item, scripts_root)
+                                inlined_count += process_job(item, scripts_root, emit_fences=emit_fences)
 
     out_stream = io.StringIO()
     yaml.dump(data, out_stream)
@@ -503,14 +572,106 @@ def write_yaml_and_hash(
     logger.debug(f"Updated hash file: {short_path(hash_file)}")
 
 
+def _state_relpath(output_file: Path, output_base: Path) -> str:
+    """Key for the state store: path relative to the enclosing git repo (or output base)."""
+    repo_root = find_repo_root(output_file.parent if output_file.is_absolute() else Path.cwd())
+    for base in (repo_root, output_base):
+        if base is None:
+            continue
+        try:
+            return str(output_file.resolve().relative_to(Path(base).resolve()))
+        except ValueError:
+            continue
+    return str(output_file.resolve())
+
+
+def write_compiled_file_no_sidecar(
+    output_file: Path,
+    new_content: str,
+    output_base: Path,
+    target: BaseTarget | None,
+    options: CompileOptions,
+) -> bool:
+    """Write a compiled file without a ``.hash`` sidecar.
+
+    Manual-edit protection comes from the state-dir ``hashes.json`` when a
+    state dir is configured; without one, the file is overwritten with a
+    warning (``--no-hash`` alone trades integrity tracking for zero footprint).
+
+    Returns True if a file was written, False otherwise.
+    """
+    new_content = remove_leading_blank_lines(new_content)
+    store = StateStore(Path(options.state_dir)) if options.state_dir else None
+    relpath = _state_relpath(output_file, output_base)
+
+    if output_file.exists():
+        current_content = output_file.read_text(encoding="utf-8")
+        if current_content == new_content:
+            logger.debug("Content of %s is already up to date. Skipping.", short_path(output_file))
+            return False
+
+        if store is not None and not options.force:
+            matches = store.content_matches(relpath, current_content)
+            if matches is None:
+                raise CompileError(
+                    f"Refusing to overwrite '{short_path(output_file)}': no integrity record for it in the "
+                    f"state directory ({store.state_dir}).\n"
+                    "Run `traceless adopt` on this file first, or pass --force to overwrite."
+                )
+            if matches is False:
+                diff_text = diff_helpers.unified_diff(
+                    normalize_for_compare(current_content),
+                    normalize_for_compare(new_content),
+                    output_file,
+                    "current (manually edited)",
+                    "newly compiled",
+                )
+                raise CompileError(
+                    f"Manual edit detected in '{short_path(output_file)}' since the last compile "
+                    f"(state record at {store.state_dir} does not match).\n"
+                    "To keep the manual changes, fold them into the source scripts first; "
+                    "to discard them, re-run with --force.\n"
+                    f"{diff_text}"
+                )
+        elif store is None:
+            logger.warning(
+                "Overwriting %s without integrity tracking (--no-hash and no state dir configured).",
+                short_path(output_file),
+            )
+
+    if target is not None:
+        ok, problems = target.validate(new_content)
+    else:
+        validator = GitLabCIValidator()
+        ok, problems = validator.validate_ci_config(new_content)
+    if not ok:
+        raise ValidationFailed(problems)
+
+    logger.info("Writing new file: %s", short_path(output_file))
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    output_file.write_text(new_content, encoding="utf-8")
+
+    if store is not None:
+        store.record_hash(relpath, new_content)
+        store.save_hashes()
+        logger.debug("Recorded content hash for %s in %s", relpath, store.hashes_path)
+    return True
+
+
 def write_compiled_file(
-    output_file: Path, new_content: str, output_base: Path, dry_run: bool = False, target: BaseTarget | None = None
+    output_file: Path,
+    new_content: str,
+    output_base: Path,
+    dry_run: bool = False,
+    target: BaseTarget | None = None,
+    options: CompileOptions | None = None,
 ) -> bool:
     """
     Writes a compiled file safely. If the destination file was manually edited in a meaningful way
     (i.e., the YAML data structure changed), it aborts with a descriptive error and a diff.
 
     Uses centralized hash directory and supports automatic migration from old hash files.
+    With ``options.write_hashes`` off, integrity state moves to the state dir (or is skipped).
 
     Returns True if a file was written (or would be in dry run), False otherwise.
     """
@@ -533,6 +694,9 @@ def write_compiled_file(
             return True
         logger.info(f"[DRY RUN] No changes for {short_path(output_file)}.")
         return False
+
+    if options is not None and not options.write_hashes:
+        return write_compiled_file_no_sidecar(output_file, new_content, output_base, target, options)
 
     # Auto-migrate old hash file if it exists
     migrate_hash_file(output_file, output_base)
@@ -639,16 +803,23 @@ def compile_single_file(
     inferred_cli_command: str,
     output_base: Path,
     target: BaseTarget | None = None,
+    options: CompileOptions | None = None,
 ) -> tuple[int, int]:
     """Compile a single YAML file and write the result.
 
     Returns a tuple of the number of inlined sections and whether a file was written (0 or 1).
     """
+    opts = options or DEFAULT_COMPILE_OPTIONS
     logger.debug(f"Processing template: {short_path(source_path)}")
     raw_text = source_path.read_text(encoding="utf-8")
-    inlined_for_file, compiled_text = inline_gitlab_scripts(raw_text, scripts_path, variables, input_dir, target=target)
-    final_content = (get_banner(inferred_cli_command) + compiled_text) if inlined_for_file > 0 else raw_text
-    written = write_compiled_file(output_file, final_content, output_base, dry_run, target=target)
+    inlined_for_file, compiled_text = inline_gitlab_scripts(
+        raw_text, scripts_path, variables, input_dir, target=target, emit_fences=opts.emit_fences
+    )
+    if inlined_for_file > 0:
+        final_content = (get_banner(inferred_cli_command) + compiled_text) if opts.emit_header else compiled_text
+    else:
+        final_content = raw_text
+    written = write_compiled_file(output_file, final_content, output_base, dry_run, target=target, options=options)
     return inlined_for_file, int(written)
 
 
@@ -659,6 +830,8 @@ def run_compile_all(
     parallelism: int | None = None,
     force: bool = False,
     target: BaseTarget | None = None,
+    options: CompileOptions | None = None,
+    stats: dict[str, Any] | None = None,
 ) -> int:
     """
     Main function to process a directory of uncompiled CI files.
@@ -671,25 +844,31 @@ def run_compile_all(
         parallelism (int | None): Maximum number of processes to use for parallel compilation.
         force (bool): If True, compile even if it appears to not be needed because nothing changed.
         target (BaseTarget | None): CI/CD platform target adapter. If None, uses legacy GitLab logic.
+        options (CompileOptions | None): Output-shaping flags (headers, fences, hashes, state dir).
+        stats (dict | None): If provided, populated with run statistics (for --json output).
 
     Returns:
         The total number of inlined sections across all files.
     """
+    opts = options or DEFAULT_COMPILE_OPTIONS
     # Check if compilation is needed (unless forced)
     if not force:
         if not needs_compilation(input_dir):
             logger.info("No input changes detected since last compilation. Skipping compilation.")
             logger.info("Use --force to compile anyway, or modify input files to trigger compilation.")
+            if stats is not None:
+                stats.update({"inlined_sections": 0, "files_written": 0, "skipped": True})
             return 0
         logger.info("Input changes detected, proceeding with compilation...")
 
     inferred_cli_command = infer_cli(input_dir, output_path, dry_run, parallelism)
-    strays = report_targets(output_path)
-    if strays:
-        print("Stray files in output folder, halting")
-        for stray in strays:
-            print(f"  {stray}")
-        raise CompileError()
+    if opts.write_hashes and not opts.in_place:
+        strays = report_targets(output_path)
+        if strays:
+            print("Stray files in output folder, halting")
+            for stray in strays:
+                print(f"  {stray}")
+            raise CompileError()
 
     total_inlined_count = 0
     written_files_count = 0
@@ -733,8 +912,10 @@ def run_compile_all(
         # NOTE: target is not passed in parallel mode because BaseTarget
         # instances may not be pickle-safe.  The workers fall back to the
         # legacy GitLab path which is fine for now (only GitLab target exists).
+        # CompileOptions is a frozen dataclass of primitives, so it crosses the
+        # process boundary safely.
         args_list = [
-            (src, out, input_dir, variables, input_dir, dry_run, inferred_cli_command, output_path)
+            (src, out, input_dir, variables, input_dir, dry_run, inferred_cli_command, output_path, None, options)
             for src, out, variables in files_to_process
         ]
         with multiprocessing.Pool(processes=max_workers) as pool:
@@ -744,7 +925,16 @@ def run_compile_all(
     else:
         for src, out, variables in files_to_process:
             inlined_for_file, wrote = compile_single_file(
-                src, out, input_dir, variables, input_dir, dry_run, inferred_cli_command, output_path, target=target
+                src,
+                out,
+                input_dir,
+                variables,
+                input_dir,
+                dry_run,
+                inferred_cli_command,
+                output_path,
+                target=target,
+                options=options,
             )
             total_inlined_count += inlined_for_file
             written_files_count += wrote
@@ -766,4 +956,14 @@ def run_compile_all(
     elif dry_run:
         logger.info(f"[DRY RUN] Simulation complete. Would have processed {written_files_count} file(s).")
 
+    if stats is not None:
+        stats.update(
+            {
+                "inlined_sections": total_inlined_count,
+                "files_written": written_files_count,
+                "files_considered": total_files,
+                "dry_run": dry_run,
+                "skipped": False,
+            }
+        )
     return total_inlined_count

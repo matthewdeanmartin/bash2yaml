@@ -18,10 +18,12 @@ def remove_leading_blank_lines(text: str) -> str:
         ''
     """
     lines = text.splitlines()
+    # Preserve a trailing newline if the input had one (files should end with one).
+    trailing = "\n" if text.endswith("\n") else ""
     # Find the first non-blank line
     for i, line in enumerate(lines):
         if line.strip() != "":
-            return "\n".join(lines[i:])
+            return "\n".join(lines[i:]) + trailing
     return ""  # All lines were blank
 
 

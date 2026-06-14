@@ -22,7 +22,7 @@ def no_update_and_no_argcomplete(monkeypatch):
     # stub logging config generator but keep the requested level for assertions via attribute
     levels: list[str] = []
 
-    def fake_generate_config(level: str = "INFO") -> dict[str, Any]:
+    def fake_generate_config(level: str = "INFO", **_kwargs: Any) -> dict[str, Any]:
         levels.append(level)
         return {"version": 1, "handlers": {}, "root": {"level": level, "handlers": []}}
 
@@ -69,7 +69,7 @@ def _patch_compile_deps(monkeypatch, *, called: dict[str, Any]):
 def _patch_detect_drift_deps(monkeypatch, *, called: dict[str, Any]):
     import bash2yaml.__main__ as m
 
-    def fake_check_for_drift(out: Path):
+    def fake_check_for_drift(out: Path, **_kwargs: Any):
         called["run_detect_drift"] = out
 
     monkeypatch.setattr(m, "run_detect_drift", fake_check_for_drift)

@@ -25,6 +25,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   directory.
 - Worked example under `examples/gitlab-component/` and a docs page
   (`docs/usage/components.md`).
+- **Traceless mode** (`spec/TRACELESS.md` v1). Run bash2yaml with zero
+  footprint in the working tree: sources and hashes live in a per-repo state
+  directory under the user's home (`hashes.json`, `sources.json`,
+  `config.toml`, keyed by a 16-hex-char fingerprint of remote URL + checkout
+  path; override with `--state-dir` / `BASH2YAML_STATE_DIR`).
+  - New `bash2yaml traceless` group: `adopt` (extract a CI file's bash into
+    out-of-tree state and verify the round trip, repo untouched), `compile`
+    (recompile adopted files in place; `--check` for pre-commit use; refuses
+    to clobber manual edits without `--force`), `verify` (assert the
+    traceless contract; exit 0 clean / 1 violation / 2 setup error;
+    `--strict` also checks tracked files), and `shred` (remove all state).
+  - Composable `compile` flags: `--no-header`, `--no-fences`, `--no-hash`,
+    `--in-place`, `--state-dir`, with `--traceless` as the macro.
+  - `decompile --traceless` extracts sources to the state dir without
+    touching the repo; `--no-rewrite` skips emitting a rewritten YAML.
+  - `--quiet-attribution` on all commands (and
+    `BASH2YAML_QUIET_ATTRIBUTION=1`): no mention of the tool by name in
+    logs, console output, or generated headers.
+  - Docs page `docs/usage/traceless.md` and worked example
+    `examples/traceless/`.
+- `--json` flag on `compile`, `validate`, `lint`, and `detect-drift` for
+  scripting: machine-readable report on stdout, logs moved to stderr.
+- Piped single-file mode: `compile --in -` compiles stdin to stdout (no
+  banner, no hash sidecar); `validate --in -` validates stdin.
+- ADR-001 (`spec/adr-001-ui-surface-tiers.md`): CLI + interactive are tier-1
+  surfaces, tkinter GUI tier-2, TUI and web are experimental (now labeled as
+  such). The interactive interface gained the `traceless` command group.
+
+### Fixed
+
+- Handler exit codes now propagate to the shell: `detect-drift` exits 1 on
+  drift, `validate` exits 1 on invalid files, `lint` exits 2 on lint
+  failures (previously these were swallowed and the process exited 0).
+- `validate` without `--out` no longer crashes; `--out` is optional there (it
+  was never used by validation). `detect-drift` without `--out` falls back to
+  the configured output dir with a clear message instead of a traceback.
+- Friendlier compile errors: a missing/uninlinable script now reports the
+  resolved path and suggests `# Pragma: do-not-inline`; failures while
+  inlining sourced files no longer surface as empty error messages.
+- Compiled files end with a trailing newline again, and inlined script
+  blocks no longer carry a leading blank line (which forced ugly `|2-`
+  explicit-indent literal blocks).
+- Compiling an input directory that lives outside the current working
+  directory no longer trips the source-security check; the input directory
+  itself becomes the sourcing boundary.
 
 ## [0.11.1] - 2026-04-15
 

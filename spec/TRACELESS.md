@@ -1,6 +1,6 @@
 # TRACELESS — bash2yaml without footprints
 
-> **Status:** Draft proposal
+> **Status:** v1 implemented (see scope checklist at the bottom); v2 items remain open
 > **Audience:** bash2yaml maintainers, contributors evaluating adoption strategy
 
 ## Problem statement
@@ -362,16 +362,16 @@ to update.
 
 Minimum to ship:
 
-- [ ] `compile --traceless` (and the `--no-header`, `--no-fences`,
+- [x] `compile --traceless` (and the `--no-header`, `--no-fences`,
       `--no-hash`, `--in-place`, `--state-dir` flags it composes from)
-- [ ] `decompile --traceless --no-rewrite`
-- [ ] `traceless adopt`
-- [ ] `traceless compile`
-- [ ] `traceless verify`
-- [ ] `traceless shred`
-- [ ] State-dir storage with `hashes.json` + `sources.json` + `config.toml`
-- [ ] `--quiet-attribution` on all commands
-- [ ] Docs page (`docs/usage/traceless.md`) and a worked example under
+- [x] `decompile --traceless --no-rewrite`
+- [x] `traceless adopt`
+- [x] `traceless compile`
+- [x] `traceless verify`
+- [x] `traceless shred`
+- [x] State-dir storage with `hashes.json` + `sources.json` + `config.toml`
+- [x] `--quiet-attribution` on all commands
+- [x] Docs page (`docs/usage/traceless.md`) and a worked example under
       `examples/traceless/`
 
 Deferred to v2:

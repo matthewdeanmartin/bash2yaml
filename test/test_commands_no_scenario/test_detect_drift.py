@@ -194,7 +194,8 @@ def test_check_for_drift_no_hash_files_found(tmp_path: Path, caplog, capsys):
     captured = capsys.readouterr()
 
     assert result == 0
-    assert "No .hash files found" in caplog.text
+    # The no-hashes case is reported on stdout now (a silent real run was a pain point).
+    assert "No .hash files found" in captured.out
     assert "No drift detected" not in captured.out  # Should exit early
 
 
