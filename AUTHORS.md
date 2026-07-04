@@ -5,4 +5,4 @@
 - Gemini (2.5 Flash and 2.5 Pro)
 - Kimi (K2)
 - Claude Sonnet
-- 
+- Fable
