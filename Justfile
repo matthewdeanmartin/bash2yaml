@@ -78,7 +78,6 @@ black: isort jiggle-version
     {{venv}} metametameta pep621
     {{venv}} black bash2yaml
     {{venv}} black test
-    {{venv}} git2md bash2yaml --ignore __init__.py __pycache__ --output SOURCE.md
 
 # Pre-commit checks
 pre-commit: isort black

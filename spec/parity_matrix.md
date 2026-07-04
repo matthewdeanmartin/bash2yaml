@@ -7,21 +7,21 @@
 
 Legend: ✅ works · 🟡 partial · ❌ missing · N/A not applicable · ? not audited
 
-| Capability | gitlab | github | circleci | bitbucket | buildspec | semaphore |
-|---|---|---|---|---|---|---|
-| compile | ✅ | ✅ | ? | ? | ? | ? |
-| decompile | ✅ | ✅ | ? | ? | ? | ? |
-| validate (online schema) | ✅ | ✅ | ? | ? | ? | ? |
-| validate (offline fallback schema) | ✅ | ✅ | ? | ? | ? | ? |
-| lint (hosted API) | ✅ GitLab CI Lint API | N/A — GitHub has no lint API; schema validation is the analog | N/A | N/A | N/A | N/A |
-| drift detect | ✅ | ✅ | ? | ? | ? | ? |
-| graph | ✅ | ? | ? | ? | ? | ? |
-| pipeline docs | ✅ | ? | ? | ? | ? | ? |
-| init scaffolding | ✅ (incl. `--component`) | ❌ — `init` scaffolds GitLab-shaped projects only | ❌ | ❌ | ❌ | ❌ |
-| watch | ✅ | ? | ? | ? | ? | ? |
-| template pin/upgrade | ✅ (`include:` pinning) | ❌ — `uses: @ref` pinning not implemented (`upgrade_pinned_templates.py` parses GitLab `include:` only) | ? | N/A (no include mechanism) | N/A | ? |
-| trigger | ✅ (python-gitlab) | ❌ — no GitHub dispatch support (`pipeline_trigger.py` is GitLab-only) | ❌ | ❌ | ❌ | ❌ |
-| parameterized reuse pass-through | ✅ `spec:inputs` + `$[[ ]]` (Phase 1) | ✅ `workflow_call` inputs + `${{ }}` (this phase) | ❌ `<< parameters.x >>` untested — hostile to naive YAML handling, needs explicit round-trip tests | ? anchors/`definitions:` | N/A (likely) | N/A (likely) |
+| Capability                         | gitlab                               | github                                                                                                 | circleci                                                                                          | bitbucket                  | buildspec    | semaphore    |
+|------------------------------------|--------------------------------------|--------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------|----------------------------|--------------|--------------|
+| compile                            | ✅                                    | ✅                                                                                                      | ?                                                                                                 | ?                          | ?            | ?            |
+| decompile                          | ✅                                    | ✅                                                                                                      | ?                                                                                                 | ?                          | ?            | ?            |
+| validate (online schema)           | ✅                                    | ✅                                                                                                      | ?                                                                                                 | ?                          | ?            | ?            |
+| validate (offline fallback schema) | ✅                                    | ✅                                                                                                      | ?                                                                                                 | ?                          | ?            | ?            |
+| lint (hosted API)                  | ✅ GitLab CI Lint API                 | N/A — GitHub has no lint API; schema validation is the analog                                          | N/A                                                                                               | N/A                        | N/A          | N/A          |
+| drift detect                       | ✅                                    | ✅                                                                                                      | ?                                                                                                 | ?                          | ?            | ?            |
+| graph                              | ✅                                    | ?                                                                                                      | ?                                                                                                 | ?                          | ?            | ?            |
+| pipeline docs                      | ✅                                    | ?                                                                                                      | ?                                                                                                 | ?                          | ?            | ?            |
+| init scaffolding                   | ✅ (incl. `--component`)              | ❌ — `init` scaffolds GitLab-shaped projects only                                                       | ❌                                                                                                 | ❌                          | ❌            | ❌            |
+| watch                              | ✅                                    | ?                                                                                                      | ?                                                                                                 | ?                          | ?            | ?            |
+| template pin/upgrade               | ✅ (`include:` pinning)               | ❌ — `uses: @ref` pinning not implemented (`upgrade_pinned_templates.py` parses GitLab `include:` only) | ?                                                                                                 | N/A (no include mechanism) | N/A          | ?            |
+| trigger                            | ✅ (python-gitlab)                    | ❌ — no GitHub dispatch support (`pipeline_trigger.py` is GitLab-only)                                  | ❌                                                                                                 | ❌                          | ❌            | ❌            |
+| parameterized reuse pass-through   | ✅ `spec:inputs` + `$[[ ]]` (Phase 1) | ✅ `workflow_call` inputs + `${{ }}` (this phase)                                                       | ❌ `<< parameters.x >>` untested — hostile to naive YAML handling, needs explicit round-trip tests | ? anchors/`definitions:`   | N/A (likely) | N/A (likely) |
 
 ## GitHub column — audit notes (2026-07-04)
 

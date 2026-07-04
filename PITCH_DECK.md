@@ -494,7 +494,3 @@ It already exists. It just needs to know about your platform.
 `bash2yaml compile`
 
 MIT License. Plugin-extensible. Built on a proven core.
-
----
-
-*Built on bash2yaml v0.9.10 — production-stable since 2024.*

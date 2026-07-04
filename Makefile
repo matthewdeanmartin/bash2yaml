@@ -74,7 +74,6 @@ black: isort jiggle_version
 	$(VENV) metametameta pep621
 	$(VENV) black bash2yaml # --exclude .venv
 	$(VENV) black test # --exclude .venv
-	$(VENV) git2md bash2yaml --ignore __init__.py __pycache__ --output SOURCE.md
 
 .PHONY: pre-commit
 pre-commit: isort black
