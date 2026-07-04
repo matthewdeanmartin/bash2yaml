@@ -1,0 +1,30 @@
+name: Reusable deploy
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "Target environment name."
+        type: string
+        required: true
+      dry-run:
+        description: "Plan only, do not apply."
+        type: boolean
+        default: false
+    secrets:
+      deploy-token:
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ !inputs.dry-run || inputs.environment != 'prod' }}
+    environment: ${{ inputs.environment }}
+    env:
+      DEPLOY_ENV: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy
+        run: ./scripts/deploy.sh
+        env:
+          DEPLOY_TOKEN: ${{ secrets.deploy-token }}

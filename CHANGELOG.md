@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- GitHub Actions reusable workflow support (Phase 2, GitHub column). The
+  `on: workflow_call: inputs:` block and `${{ ... }}` expressions pass
+  through compile/decompile verbatim, in `if:`, `env:`, `environment:`, and
+  `run:` strings alike.
+- Expressions inside `.sh` source files are opt-in via
+  `# Pragma: github-expression` (mirrors `gitlab-interpolation`: the pragma
+  line is stripped from compiled output; expressions without the pragma
+  warn). Decompile adds the pragma automatically when extracted script lines
+  contain `${{ }}`.
+- Worked example under `examples/github-reusable/`, a docs page
+  (`docs/usage/github-reusable.md`), and the Phase 2 parity matrix at
+  `spec/parity_matrix.md` (GitLab + GitHub columns audited).
+
 - GitLab CI/CD component template support (`spec:inputs`). Compile, decompile,
   and validate now handle the multi-document layout: the `spec:` header
   round-trips byte-identically, the body is compiled and schema-validated on

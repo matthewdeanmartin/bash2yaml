@@ -27,6 +27,7 @@ from ruamel.yaml.scalarstring import FoldedScalarString
 from bash2yaml.config import config
 from bash2yaml.errors.exceptions import ValidationFailed
 from bash2yaml.targets.base import BaseTarget
+from bash2yaml.utils.github_expressions import EXPRESSION_REGEX
 from bash2yaml.utils.gitlab_components import INTERPOLATION_REGEX, split_component_template
 from bash2yaml.utils.mock_ci_vars import generate_mock_ci_variables_script
 from bash2yaml.utils.pathlib_polyfills import is_relative_to
@@ -330,6 +331,9 @@ def decompile_script_block(
     # recompiles without warnings.
     if any(INTERPOLATION_REGEX.search(line) for line in script_lines):
         header_parts.append("# Pragma: gitlab-interpolation")
+    # Same for GitHub Actions `${{ }}` expressions.
+    if any(EXPRESSION_REGEX.search(line) for line in script_lines):
+        header_parts.append("# Pragma: github-expression")
     sourcing_block: list[str] = []
     if global_vars_filename:
         sourcing_block.append(f"  . ./{global_vars_filename}")

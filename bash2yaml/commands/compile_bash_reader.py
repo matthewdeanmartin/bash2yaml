@@ -8,6 +8,7 @@ import re
 from pathlib import Path
 
 from bash2yaml.errors.exceptions import Bash2YamlError
+from bash2yaml.utils.github_expressions import strip_expression_pragma_lines
 from bash2yaml.utils.gitlab_components import strip_interpolation_pragma_lines
 from bash2yaml.utils.pathlib_polyfills import is_relative_to
 from bash2yaml.utils.utils import short_path
@@ -101,6 +102,10 @@ def read_bash_script(path: Path, allowed_root: Path | None = None) -> str:
     # gitlab-interpolation pragma line itself is a compiler directive and is
     # stripped (and its absence next to `$[[ ]]` tokens warns).
     content = strip_interpolation_pragma_lines(content, short_path(path))
+
+    # Same deal for GitHub Actions `${{ ... }}` expressions and the
+    # github-expression pragma.
+    content = strip_expression_pragma_lines(content, short_path(path))
 
     if not content.strip():
         raise Bash2YamlError(f"Script is empty or only contains whitespace: {path}")
