@@ -8,7 +8,11 @@ else
     VENV :=
 endif
 
-BASH_RUN := powershell -NoProfile -Command "& 'C:/Program Files/Git/bin/bash.exe'"
+ifeq ($(OS),Windows_NT)
+    BASH_RUN ?= "C:/Program Files/Git/bin/bash.exe"
+else
+    BASH_RUN ?= bash
+endif
 
 uv.lock: pyproject.toml
 	@echo "Installing dependencies"
@@ -20,7 +24,7 @@ clean-pyc:
 
 clean-test:
 	@echo "Removing coverage data"
-	@powershell -NoProfile -Command "Remove-Item -Force -ErrorAction SilentlyContinue '.coverage'; Remove-Item -Force -ErrorAction SilentlyContinue '.coverage.*'"
+	@python -c "from pathlib import Path; [p.unlink(missing_ok=True) for p in Path('.').glob('.coverage*')]"
 
 clean: clean-pyc clean-test
 
@@ -184,11 +188,11 @@ core_all_tests:
 	uv sync --all-extras
 
 update-schema:
-	@powershell -NoProfile -Command "New-Item -ItemType Directory -Force 'bash2yaml/schemas' | Out-Null"
+	@python -c "from pathlib import Path; Path('bash2yaml/schemas').mkdir(parents=True, exist_ok=True)"
 	@echo "Downloading GitLab CI schema..."
-	@powershell -NoProfile -Command "try { Invoke-WebRequest -UseBasicParsing 'https://gitlab.com/gitlab-org/gitlab/-/raw/master/app/assets/javascripts/editor/schema/ci.json' -OutFile 'bash2yaml/schemas/gitlab_ci_schema.json'; Write-Host 'Schema saved'; } catch { Write-Warning 'Failed to download schema'; }"
+	@python -c "import pathlib, urllib.request; src='https://gitlab.com/gitlab-org/gitlab/-/raw/master/app/assets/javascripts/editor/schema/ci.json'; dst=pathlib.Path('bash2yaml/schemas/gitlab_ci_schema.json'); urllib.request.urlretrieve(src, dst); print('Schema saved')" || echo "Failed to download schema"
 	@echo "Downloading NOTICE..."
-	@powershell -NoProfile -Command "try { Invoke-WebRequest -UseBasicParsing 'https://gitlab.com/gitlab-org/gitlab/-/raw/master/app/assets/javascripts/editor/schema/NOTICE?ref_type=heads' -OutFile 'bash2yaml/schemas/NOTICE.txt'; Write-Host 'NOTICE saved'; } catch { Write-Warning 'Failed to download NOTICE'; }"
+	@python -c "import pathlib, urllib.request; src='https://gitlab.com/gitlab-org/gitlab/-/raw/master/app/assets/javascripts/editor/schema/NOTICE?ref_type=heads'; dst=pathlib.Path('bash2yaml/schemas/NOTICE.txt'); urllib.request.urlretrieve(src, dst); print('NOTICE saved')" || echo "Failed to download NOTICE"
 
 # ── Dogfooding targets (independent, not wired into check) ───────────────────
 
