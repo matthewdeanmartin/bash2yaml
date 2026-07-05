@@ -47,8 +47,7 @@ from functools import partial
 from pathlib import Path
 from urllib import error, request
 
-import orjson as json
-
+from bash2yaml.utils.json_compat import json
 from bash2yaml.utils.utils import short_path
 
 logger = logging.getLogger(__name__)

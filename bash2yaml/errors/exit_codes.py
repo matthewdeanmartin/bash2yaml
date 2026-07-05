@@ -4,7 +4,6 @@ from enum import IntEnum
 from subprocess import CalledProcessError  # nosec
 
 from bash2yaml import PrecommitHookError
-from bash2yaml.commands.best_effort_runner import GitlabRunnerError
 from bash2yaml.commands.compile_bash_reader import PragmaError, SourceSecurityError
 from bash2yaml.errors.exceptions import (
     Bash2YamlError,
@@ -34,7 +33,6 @@ class ExitCode(IntEnum):
     COMMAND_ERROR = 30
     PRAGMA_ERROR = 31
     SOURCE_SECURITY_ERROR = 32
-    GITLAB_RUNNER_ERROR = 33
     COMPILE_ERROR = 34
     COMPILATION_NEEDED = 35
     PRECOMMIT_HOOK_ERROR = 36
@@ -57,7 +55,6 @@ ERROR_CODE_MAP: dict[type[BaseException], ExitCode] = {
     PermissionDenied: ExitCode.PERMISSION_DENIED,
     NetworkIssue: ExitCode.NETWORK_ERROR,
     ValidationFailed: ExitCode.VALIDATION_ERROR,
-    GitlabRunnerError: ExitCode.GITLAB_RUNNER_ERROR,
     SourceSecurityError: ExitCode.SOURCE_SECURITY_ERROR,
     PragmaError: ExitCode.PRAGMA_ERROR,
     CompileError: ExitCode.COMPILE_ERROR,

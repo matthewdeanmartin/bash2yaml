@@ -12,10 +12,10 @@ from pathlib import Path
 from typing import Any
 
 import jsonschema
-import orjson as json
 import ruamel.yaml
 
 from bash2yaml.utils.gitlab_components import split_component_template, validate_spec_header
+from bash2yaml.utils.json_compat import json
 
 logger = logging.getLogger(__name__)
 

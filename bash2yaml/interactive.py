@@ -66,15 +66,13 @@ class InteractiveInterface:
             ("10", "commit-map", "Copy changed files back to source locations"),
             ("11", "detect-drift", "Detect if generated files have been edited"),
             ("12", "doctor", "Run health checks on project and environment"),
-            ("13", "graph", "Generate dependency graph of project files"),
-            ("14", "show-config", "Display current configuration"),
-            ("15", "install-precommit", "Install Git pre-commit hook"),
-            ("16", "uninstall-precommit", "Remove Git pre-commit hook"),
-            ("17", "check-pins", "Analyze and suggest pinning GitLab CI includes"),
-            ("18", "trigger-pipelines", "Trigger pipelines in GitLab projects"),
-            ("19", "run", "Run .gitlab-ci.yml file locally (best effort)"),
-            ("20", "autogit", "Manually trigger autogit process"),
-            ("21", "traceless", "Zero-footprint workflow: adopt/compile/verify/shred (state lives outside the repo)"),
+            ("13", "show-config", "Display current configuration"),
+            ("14", "install-precommit", "Install Git pre-commit hook"),
+            ("15", "uninstall-precommit", "Remove Git pre-commit hook"),
+            ("16", "check-pins", "Analyze and suggest pinning GitLab CI includes"),
+            ("17", "trigger-pipelines", "Trigger pipelines in GitLab projects"),
+            ("18", "autogit", "Manually trigger autogit process"),
+            ("19", "traceless", "Zero-footprint workflow: adopt/compile/verify/shred (state lives outside the repo)"),
             ("q", "quit", "Exit interactive interface"),
         ]
 
@@ -338,22 +336,6 @@ class InteractiveInterface:
 
         return params
 
-    def handle_graph_command(self) -> dict[str, Any]:
-        """Handle graph command configuration."""
-        self.console.print("\n[bold cyan]Graph Command Configuration[/bold cyan]")
-
-        params = {}
-
-        # Input directory
-        default_input = str(config.input_dir) if config.input_dir else "."
-        input_dir = Prompt.ask("Input directory", default=default_input)
-        params["input_dir"] = input_dir
-
-        # Common options
-        params.update(self.get_common_options())
-
-        return params
-
     def handle_show_config_command(self) -> dict[str, Any]:
         """Handle show-config command configuration."""
         self.console.print("\n[bold cyan]Show-Config Command[/bold cyan]")
@@ -518,21 +500,6 @@ class InteractiveInterface:
 
         return params
 
-    def handle_run_command(self) -> dict[str, Any]:
-        """Handle run command configuration."""
-        self.console.print("\n[bold cyan]Run Command Configuration[/bold cyan]")
-
-        params: dict[str, Any] = {}
-
-        # Input file
-        input_file = Prompt.ask("GitLab CI file to run", default=".gitlab-ci.yml")
-        params["input_file"] = input_file
-
-        # Common options
-        params.update(self.get_common_options())
-
-        return params
-
     def handle_traceless_command(self) -> dict[str, Any]:
         """Handle traceless command group configuration."""
         self.console.print("\n[bold cyan]Traceless Command Configuration[/bold cyan]")
@@ -610,7 +577,6 @@ class InteractiveInterface:
 
         from bash2yaml.__main__ import (
             autogit_handler,
-            best_effort_run_handler,
             check_pins_handler,
             clean_handler,
             commit_map_handler,
@@ -619,7 +585,6 @@ class InteractiveInterface:
             decompile_handler,
             doctor_handler,
             drift_handler,
-            graph_handler,
             handle_change_detection_commands,
             init_handler,
             install_precommit_handler,
@@ -649,13 +614,11 @@ class InteractiveInterface:
             "commit-map": commit_map_handler,
             "detect-drift": drift_handler,
             "doctor": doctor_handler,
-            "graph": graph_handler,
             "show-config": show_config_handler,
             "install-precommit": install_precommit_handler,
             "uninstall-precommit": uninstall_precommit_handler,
             "check-pins": check_pins_handler,
             "trigger-pipelines": trigger_pipelines_handler,
-            "run": best_effort_run_handler,
             "autogit": autogit_handler,
             "traceless": traceless_handler,
         }
@@ -699,15 +662,13 @@ class InteractiveInterface:
                     "10": ("commit-map", self.handle_commit_map_command),
                     "11": ("detect-drift", self.handle_detect_drift_command),
                     "12": ("doctor", self.handle_doctor_command),
-                    "13": ("graph", self.handle_graph_command),
-                    "14": ("show-config", self.handle_show_config_command),
-                    "15": ("install-precommit", lambda: self.handle_precommit_command(True)),
-                    "16": ("uninstall-precommit", lambda: self.handle_precommit_command(False)),
-                    "17": ("check-pins", self.handle_check_pins_command),
-                    "18": ("trigger-pipelines", self.handle_trigger_pipelines_command),
-                    "19": ("run", self.handle_run_command),
-                    "20": ("autogit", self.handle_autogit_command),
-                    "21": ("traceless", self.handle_traceless_command),
+                    "13": ("show-config", self.handle_show_config_command),
+                    "14": ("install-precommit", lambda: self.handle_precommit_command(True)),
+                    "15": ("uninstall-precommit", lambda: self.handle_precommit_command(False)),
+                    "16": ("check-pins", self.handle_check_pins_command),
+                    "17": ("trigger-pipelines", self.handle_trigger_pipelines_command),
+                    "18": ("autogit", self.handle_autogit_command),
+                    "19": ("traceless", self.handle_traceless_command),
                 }
 
                 if choice in command_map:

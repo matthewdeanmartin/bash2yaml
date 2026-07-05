@@ -720,10 +720,10 @@ class PrecommitForm(CommandForm):
 
 
 class UtilityForm(CommandForm):
-    """Form for utility commands like doctor, graph, show-config, detect-drift."""
+    """Form for utility commands like doctor, show-config, and detect-drift."""
 
     def compose(self) -> ComposeResult:
-        """Build utilities form UI with buttons for doctor, config, graph, and drift detection."""
+        """Build utilities form UI with buttons for doctor, config, and drift detection."""
         with Vertical():
             yield Label("🔧 Utilities", classes="form-title")
 
@@ -736,17 +736,6 @@ class UtilityForm(CommandForm):
             with Horizontal():
                 yield Button("⚙️ Show Config", variant="primary", id="show-config-btn")
                 yield Static("Display current configuration")
-
-            # Graph command
-            with Container():
-                with Horizontal():
-                    yield Label("Input Directory:", classes="label")
-                    yield Input(
-                        value=str(config.input_dir) if config and config.input_dir else "",
-                        placeholder="Input directory for graph",
-                        id="graph-input-dir",
-                    )
-                yield Button("📊 Generate Graph", variant="primary", id="graph-btn")
 
             # Detect drift command
             with Container():
@@ -793,24 +782,6 @@ class UtilityForm(CommandForm):
 
         self.post_message(ExecuteCommand(args))
 
-    @on(Button.Pressed, "#graph-btn")
-    async def on_graph_pressed(self) -> None:
-        """Handle graph button press."""
-        args = ["bash2yaml", "graph"]
-
-        input_dir = self.query_one("#graph-input-dir", Input).value.strip()
-        verbose = self.query_one("#verbose", Checkbox).value
-        quiet = self.query_one("#quiet", Checkbox).value
-
-        if input_dir:
-            args.extend(["--in", input_dir])
-        if verbose:
-            args.append("--verbose")
-        if quiet:
-            args.append("--quiet")
-
-        self.post_message(ExecuteCommand(args))
-
     @on(Button.Pressed, "#drift-btn")
     async def on_drift_pressed(self) -> None:
         """Handle detect-drift button press."""
@@ -822,43 +793,6 @@ class UtilityForm(CommandForm):
 
         if output_dir:
             args.extend(["--out", output_dir])
-        if verbose:
-            args.append("--verbose")
-        if quiet:
-            args.append("--quiet")
-
-        self.post_message(ExecuteCommand(args))
-
-
-class RunForm(CommandForm):
-    """Form for the run command."""
-
-    def compose(self) -> ComposeResult:
-        """Build run form UI with input file selector."""
-        with Vertical():
-            yield Label("▶️ Run Pipeline", classes="form-title")
-
-            with Horizontal():
-                yield Label("Input File:", classes="label")
-                yield Input(value=".gitlab-ci.yml", placeholder="Path to .gitlab-ci.yml", id="input-file")
-
-            with Horizontal():
-                yield Checkbox("Verbose", id="verbose")
-                yield Checkbox("Quiet", id="quiet")
-
-            yield Button("▶️ Run", variant="success", id="execute-btn")
-
-    async def execute_command(self) -> None:
-        """Execute the run command."""
-        args = ["bash2yaml", "run"]
-
-        input_file = self.query_one("#input-file", Input).value.strip()
-
-        if input_file:
-            args.extend(["--in-file", input_file])
-
-        verbose = self.query_one("#verbose", Checkbox).value
-        quiet = self.query_one("#quiet", Checkbox).value
         if verbose:
             args.append("--verbose")
         if quiet:
@@ -1220,9 +1154,6 @@ class Bash2YamlTUI(App):
             with TabPane("Trigger Pipelines", id="trigger-pipelines"):
                 yield TriggerPipelinesForm("trigger-pipelines")
 
-            with TabPane("Run", id="run"):
-                yield RunForm("run")
-
             with TabPane("Detect Uncompiled", id="detect-uncompiled"):
                 yield DetectUncompiledForm("detect-uncompiled")
 
@@ -1316,7 +1247,6 @@ Install or uninstall Git pre-commit hooks for bash2yaml.
 ### Utilities
 - **Doctor**: Run system health checks
 - **Show Config**: Display current configuration
-- **Generate Graph**: Create dependency graph (DOT format)  
 - **Detect Drift**: Check for manual edits to generated files
 
 ## Common Options

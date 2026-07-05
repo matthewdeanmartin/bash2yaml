@@ -197,7 +197,7 @@ def test_run_compile_all_with_no_footprint_flags(tmp_path: Path, monkeypatch):
     out = tmp_path / "out"
     src.mkdir()
     (src / "ci.yml").write_text(
-        'job_one:\n  stage: build\n  script:\n    - ./build.sh\n',
+        "job_one:\n  stage: build\n  script:\n    - ./build.sh\n",
         encoding="utf-8",
     )
     (src / "build.sh").write_text('#!/bin/bash\necho "step one"\necho "step two"\n', encoding="utf-8")

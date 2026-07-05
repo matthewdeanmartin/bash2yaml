@@ -4,11 +4,11 @@ import ssl
 from typing import Any
 
 import certifi
-import orjson
 import urllib3
 from urllib3.util import Retry
 
 from bash2yaml.errors.exceptions import Bash2YamlError
+from bash2yaml.utils.json_compat import json
 
 _POOL_TUPLE = None
 
@@ -97,4 +97,4 @@ def fetch_json(
 
         # JSON is UTF-8 by spec; if you want to honor charset, parse r.headers.
         raw = r.read()
-        return orjson.loads(raw.decode("utf-8"))
+        return json.loads(raw.decode("utf-8"))

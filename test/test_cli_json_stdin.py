@@ -25,7 +25,9 @@ def cli_env(monkeypatch):
 
     if m.argcomplete:
         monkeypatch.setattr(m.argcomplete, "autocomplete", lambda *a, **k: None)
-    monkeypatch.setattr(m, "start_background_update_check", lambda *a, **k: None)
+    monkeypatch.setattr(m, "upgrade_startup_report", lambda: None)
+    monkeypatch.setattr(m, "upgrade_exit_report", lambda: None)
+    monkeypatch.setattr(m, "render_upgrade_notice", lambda report: None)
     monkeypatch.setattr(m.logging.config, "dictConfig", lambda cfg: None)
     # enable_quiet_attribution sets this for child processes. setenv (not
     # delenv) registers an undo even when the var was absent, so the flag set

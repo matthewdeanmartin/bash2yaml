@@ -28,9 +28,9 @@ from bash2yaml.targets.base import BaseTarget
 from bash2yaml.utils import diff_helpers
 from bash2yaml.utils.attribution import quiet_attribution_enabled
 from bash2yaml.utils.dotenv import parse_env_file
-from bash2yaml.utils.state_store import StateStore, find_repo_root
 from bash2yaml.utils.gitlab_components import split_component_template
 from bash2yaml.utils.parse_bash import extract_script_path
+from bash2yaml.utils.state_store import StateStore, find_repo_root
 from bash2yaml.utils.utils import remove_leading_blank_lines, short_path
 from bash2yaml.utils.validate_pipeline import GitLabCIValidator
 from bash2yaml.utils.yaml_factory import get_yaml
@@ -346,9 +346,7 @@ def process_script_list(
     return rebuild_seq_like(compact_items, was_commented_seq, original_seq)
 
 
-def process_job(
-    job_data: dict, scripts_root: Path, target: BaseTarget | None = None, emit_fences: bool = True
-) -> int:
+def process_job(job_data: dict, scripts_root: Path, target: BaseTarget | None = None, emit_fences: bool = True) -> int:
     """Processes a single job definition to inline scripts."""
     if target is not None:
         script_keys = target.script_keys()

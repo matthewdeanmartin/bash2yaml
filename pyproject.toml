@@ -6,21 +6,16 @@ readme = "README.md"
 authors = [{ name = "Matthew Martin", email = "matthewdeanmartin@gmail.com" }]
 keywords = ["bash", "gitlab", "github"]
 license = "MIT"
-requires-python = ">=3.9"
+requires-python = ">=3.8"
 dependencies = [
-    # Core enables compile, decompile, validate, best effort runner
+    # Core enables compile, decompile, validate, and update checks
     "ruamel.yaml>=0.18.14", # required to compile
     # TODO: evaluate ruamel.yaml.clib
 
     "jsonschema>=4.23.0", # required to compile
     "importlib_resources>=6.4.5", # Used by validator
     "toml>=0.10.2", # backwards compat, required to compile
-    # native libs to speed things up
-
-    # Make optional [fast]
-    "rtoml>=0.13.0; python_version >= '3.14'",
-    "rtoml>=0.5.0",
-    "orjson>=3.10.8",
+    "do_i_need_to_upgrade>=0.1.0; python_version >= '3.9'",
 
     "urllib3>=2.0.0",
     "certifi>=2025.8.3",
@@ -59,6 +54,11 @@ issues = "https://github.com/matthewdeanmartin/bash2yaml/issues/"
 # The assumption is untrusted code is a bigger problem on a build server
 # This is not a substitute for being vigilant with your package scanning.
 all = [
+    # Speedups with native extensions
+    "rtoml>=0.13.0; python_version >= '3.14'",
+    "rtoml>=0.5.0",
+    "orjson>=3.10.8",
+
     # CLI
     "argcomplete", # could be optional
     "rich_argparse", # could be optional
@@ -69,12 +69,28 @@ all = [
     "colorlog", # could be optional
     "rich", # could be optional - interative/init/tui
     "watchdog>=3.0.0", # optional
-    # update checker
-    "packaging", # could be optional
     # Config
     "tomlkit", # right now only used by init
     "tomli; python_version < '3.11'",
 ]
+fast = [
+    "rtoml>=0.13.0; python_version >= '3.14'",
+    "rtoml>=0.5.0",
+    "orjson>=3.10.8",
+]
+pure-python-features = [
+    "argcomplete",
+    "rich_argparse",
+    "totalhelp",
+    "textual",
+    "colorlog",
+    "rich",
+    "watchdog>=3.0.0",
+    "tomlkit",
+    "tomli; python_version < '3.11'",
+]
+# Deprecated compatibility alias. The built-in best-effort runner has been removed.
+bitrab = []
 
 
 [dependency-groups]
@@ -128,7 +144,7 @@ dev = [
     "linkcheckmd>=1.4.0; python_version >= '3.8'",
     "codespell>=2.2.6; python_version >= '3.8'",
     "pyenchant>=3.2.2; python_version >= '3.8'",
-    "keepachangelog-manager-fork[all]>=6.5.0",
+    "keepachangelog-manager-fork[all]>=6.5.0; python_version >= '3.9'",
 ]
 
 [tool.uv]

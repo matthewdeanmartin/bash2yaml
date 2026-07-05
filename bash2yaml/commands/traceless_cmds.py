@@ -21,11 +21,7 @@ import subprocess  # nosec
 from pathlib import Path
 from typing import Any
 
-from bash2yaml.commands.compile_all import (
-    CompileOptions,
-    inline_gitlab_scripts,
-    write_compiled_file_no_sidecar,
-)
+from bash2yaml.commands.compile_all import CompileOptions, inline_gitlab_scripts, write_compiled_file_no_sidecar
 from bash2yaml.commands.decompile_all import run_decompile_traceless
 from bash2yaml.errors.exceptions import Bash2YamlError, NotFound
 from bash2yaml.targets.base import BaseTarget
@@ -72,9 +68,7 @@ def _compile_state_source(
         raise Bash2YamlError(f"'{rel}' is not adopted; run `traceless adopt --in-file {rel}` first.")
     uncompiled_path = store.state_dir / info["uncompiled"]
     if not uncompiled_path.is_file():
-        raise Bash2YamlError(
-            f"State-dir source for '{rel}' is missing ({uncompiled_path}). Re-run `traceless adopt`."
-        )
+        raise Bash2YamlError(f"State-dir source for '{rel}' is missing ({uncompiled_path}). Re-run `traceless adopt`.")
 
     input_dir = uncompiled_path.parent
     raw_text = uncompiled_path.read_text(encoding="utf-8")

@@ -4,11 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from bash2yaml.utils.github_expressions import (
-    EXPRESSION_REGEX,
-    contains_expression,
-    strip_expression_pragma_lines,
-)
+from bash2yaml.utils.github_expressions import EXPRESSION_REGEX, contains_expression, strip_expression_pragma_lines
 
 
 class TestExpressionRegex:

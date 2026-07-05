@@ -4,15 +4,15 @@ Handles CLI interactions for bash2yaml
 usage: bash2yaml [-h] [--version]
                    {compile,decompile,detect-drift,copy2local,init,map-deploy,commit-map,clean,
                     lint,install-precommit,uninstall-precommit,check-pins,trigger-pipelines,
-                    doctor,graph,show-config,run,detect-uncompiled,validate,autogit}
+                    doctor,show-config,detect-uncompiled,validate,autogit,upgrade,check-updates}
                    ...
 
 A tool for making development of centralized yaml gitlab templates more pleasant.
 
 positional arguments:
   {compile,decompile,detect-drift,copy2local,init,map-deploy,commit-map,clean,lint,
-   install-precommit,uninstall-precommit,check-pins,trigger-pipelines,doctor,graph,
-   show-config,run,detect-uncompiled,validate,autogit}
+   install-precommit,uninstall-precommit,check-pins,trigger-pipelines,doctor,
+   show-config,detect-uncompiled,validate,autogit,upgrade,check-updates}
     compile             Compile an uncompiled directory into a standard GitLab CI structure.
     decompile           Decompile a GitLab CI file, extracting inline scripts into separate .sh files.
     detect-drift        Detect if generated files have been edited and display what the edits are.
@@ -27,12 +27,12 @@ positional arguments:
     check-pins          Analyze GitLab CI 'include' statements and suggest pinning to tags.
     trigger-pipelines   Trigger pipelines in one or more GitLab projects and optionally wait for completion.
     doctor              Run a series of health checks on the project and environment.
-    graph               Generate a DOT language dependency graph of your project's YAML and script files.
     show-config         Display the current bash2yaml configuration and its sources.
-    run                 Best efforts to run a .gitlab-ci.yml file locally.
     detect-uncompiled   Detect if input files have changed since last compilation.
     validate            Validate yaml pipelines against Gitlab json schema.
     autogit             Manually trigger the autogit process based on your configuration.
+    upgrade             Upgrade bash2yaml to the latest release.
+    check-updates       Check whether bash2yaml has upgrades available.
     traceless           Zero-footprint workflow (adopt/compile/verify/shred): state lives outside the repo,
                         compiled YAML looks hand-written. See docs/usage/traceless.md.
 
@@ -44,6 +44,7 @@ options:
 from __future__ import annotations
 
 import argparse
+import atexit
 import json
 import logging
 import logging.config
@@ -67,7 +68,6 @@ from gitlab.exceptions import GitlabAuthenticationError, GitlabHttpError
 from bash2yaml import __about__
 from bash2yaml import __doc__ as root_doc
 from bash2yaml.commands.autogit import run_autogit
-from bash2yaml.commands.best_effort_runner import best_efforts_run
 from bash2yaml.commands.clean_all import clean_targets
 from bash2yaml.commands.compile_all import CompileOptions, inline_gitlab_scripts, run_compile_all
 from bash2yaml.commands.decompile_all import (
@@ -76,12 +76,6 @@ from bash2yaml.commands.decompile_all import (
     run_decompile_traceless,
 )
 from bash2yaml.commands.detect_drift import run_detect_drift
-from bash2yaml.commands.traceless_cmds import (
-    run_traceless_adopt,
-    run_traceless_compile,
-    run_traceless_shred,
-    run_traceless_verify,
-)
 from bash2yaml.commands.input_change_detector import get_changed_files, needs_compilation
 from bash2yaml.commands.lint_all import lint_output_folder, summarize_results
 from bash2yaml.commands.pipeline_trigger import (
@@ -91,6 +85,12 @@ from bash2yaml.commands.pipeline_trigger import (
     trigger_pipelines,
 )
 from bash2yaml.commands.show_config import run_show_config
+from bash2yaml.commands.traceless_cmds import (
+    run_traceless_adopt,
+    run_traceless_compile,
+    run_traceless_shred,
+    run_traceless_verify,
+)
 from bash2yaml.commands.upgrade_pinned_templates import analyses_to_json, analyses_to_table, suggest_include_pins
 from bash2yaml.commands.validate_all import run_validate_all
 from bash2yaml.config import config
@@ -99,6 +99,11 @@ from bash2yaml.errors.exit_codes import ExitCode, resolve_exit_code
 from bash2yaml.install_help import print_install_help
 from bash2yaml.plugins import get_pm
 from bash2yaml.targets import list_targets, resolve_target
+from bash2yaml.upgrade_integration import add_commands as add_upgrade_commands
+from bash2yaml.upgrade_integration import exit_report as upgrade_exit_report
+from bash2yaml.upgrade_integration import render_notice as render_upgrade_notice
+from bash2yaml.upgrade_integration import run_command as run_upgrade_command
+from bash2yaml.upgrade_integration import startup_report as upgrade_startup_report
 from bash2yaml.utils.attribution import enable_quiet_attribution
 from bash2yaml.utils.cli_suggestions import SmartParser
 from bash2yaml.utils.logging_config import generate_config
@@ -107,15 +112,12 @@ from bash2yaml.utils.logging_config import generate_config
 try:
     from bash2yaml.commands.copy2local import clone_repository_ssh, fetch_repository_archive
     from bash2yaml.commands.doctor import run_doctor
-    from bash2yaml.commands.graph_all import generate_dependency_graph
     from bash2yaml.commands.init_project import run_init
     from bash2yaml.commands.map_commit import run_commit_map
     from bash2yaml.commands.map_deploy import run_map_deploy
     from bash2yaml.commands.precommit import PrecommitHookError, install, uninstall
-    from bash2yaml.utils.update_checker import start_background_update_check
     from bash2yaml.watch_files import start_watch
 except ModuleNotFoundError:
-    start_background_update_check = None  # type: ignore[assignment]
     start_watch = None  # type: ignore[assignment]
 
 # emoji support
@@ -651,30 +653,10 @@ def doctor_handler(_args: argparse.Namespace) -> int:
     return run_doctor()
 
 
-def graph_handler(args: argparse.Namespace) -> int:
-    """Handler for the 'graph' command."""
-    in_dir = Path(args.input_dir).resolve()
-    if not in_dir.is_dir():
-        logger.error(f"Input directory does not exist or is not a directory: {in_dir}")
-        raise NotFound(in_dir)
-
-    dot_output = generate_dependency_graph(in_dir)
-    if dot_output:
-        print(dot_output)
-        return 0
-    logger.warning("No graph data generated. Check input directory and file structure.")
-    return 0
-
-
 def show_config_handler(_args: argparse.Namespace) -> int:
     """Handler for the 'show-config' command."""
     # The run_show_config function already prints messages and returns an exit code.
     return run_show_config()
-
-
-def best_effort_run_handler(args: argparse.Namespace) -> None:
-    """Handler for the 'run' command."""
-    best_efforts_run(Path(args.input_file))
 
 
 def autogit_handler(args: argparse.Namespace) -> int:
@@ -763,8 +745,16 @@ def handle_change_detection_commands(args) -> None:
 
 def main() -> int:
     """Main CLI entry point."""
-    if start_background_update_check:  # type: ignore[truthy-function]
-        start_background_update_check(__about__.__title__, __about__.__version__)
+    startup_notice = render_upgrade_notice(upgrade_startup_report())
+    if startup_notice:
+        print(startup_notice, file=sys.stderr)
+
+    def _emit_exit_notice() -> None:
+        exit_notice = render_upgrade_notice(upgrade_exit_report())
+        if exit_notice and exit_notice != startup_notice:
+            print(exit_notice, file=sys.stderr)
+
+    atexit.register(_emit_exit_notice)
 
     try:
         from rich_argparse import RichHelpFormatter
@@ -1253,38 +1243,12 @@ def main() -> int:
     add_common_arguments(doctor_parser)
     doctor_parser.set_defaults(func=doctor_handler)
 
-    # --- Graph Command ---
-    graph_parser = subparsers.add_parser(
-        "graph", help="Generate a DOT language dependency graph of your project's YAML and script files."
-    )
-    graph_parser.add_argument(
-        "--in",
-        dest="input_dir",
-        required=not bool(config.compile_input_dir),
-        help="Input directory containing the uncompiled `.gitlab-ci.yml` and other sources.",
-    )
-    add_common_arguments(graph_parser)
-    graph_parser.set_defaults(func=graph_handler)
-
     # --- Show Config Command ---
     show_config_parser = subparsers.add_parser(
         "show-config", help="Display the current bash2yaml configuration and its sources."
     )
     add_common_arguments(show_config_parser)
     show_config_parser.set_defaults(func=show_config_handler)
-
-    # --- Run command ---
-    run_parser = subparsers.add_parser("run", help="Best efforts to run a .gitlab-ci.yml file locally.")
-    run_parser.add_argument(
-        "--in-file",
-        default=".gitlab-ci.yml",
-        dest="input_file",
-        required=False,
-        help="Path to `.gitlab-ci.yml`, defaults to current directory",
-    )
-
-    add_common_arguments(run_parser)
-    run_parser.set_defaults(func=best_effort_run_handler)
 
     # --- Detect Uncompiled ----
     # Add change detection arguments to argument parser
@@ -1421,11 +1385,15 @@ def main() -> int:
     add_common_arguments(tl_shred)
     tl_shred.set_defaults(func=traceless_handler)
 
+    add_upgrade_commands(subparsers)
     get_pm().hook.register_cli(subparsers=subparsers, config=config)
 
     if argcomplete:
         argcomplete.autocomplete(parser)
     args = parser.parse_args()
+
+    if (result := run_upgrade_command(args)) is not None:
+        return result
 
     if totalhelp and getattr(args, "totalhelp", False):
         doc = totalhelp.full_help_from_parser(parser, fmt=getattr(args, "format", "text"))
@@ -1485,11 +1453,6 @@ def main() -> int:
         args.gitlab_url = args.gitlab_url or config.lint_gitlab_url
         if not args.gitlab_url:
             trigger_parser.error("argument --gitlab-url is required")
-    elif args.command == "graph":
-        # Only merge --out from config; GitLab connection is explicit via CLI
-        args.input_dir = args.input_dir or config.input_dir
-        if not args.input_dir:
-            lint_parser.error("argument --in is required")
     elif args.command == "validate":
         args.input_dir = args.input_dir or config.compile_input_dir
         args.output_dir = args.output_dir or config.compile_output_dir
@@ -1503,7 +1466,7 @@ def main() -> int:
             detect_drift_parser.error(
                 "argument --out is required (or set output_dir in your bash2yaml config / BASH2YAML_OUTPUT_DIR)"
             )
-    # install-precommit / uninstall-precommit / doctor / graph / show-config / autogit do not merge config
+    # install-precommit / uninstall-precommit / doctor / show-config / autogit / updater commands do not merge config
 
     # Resolve target for target-aware commands
     if hasattr(args, "target"):

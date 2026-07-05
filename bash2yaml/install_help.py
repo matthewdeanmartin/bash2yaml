@@ -1,4 +1,4 @@
-"""Let people know how to install bash2yaml[all]"""
+"""Let people know how to install bash2yaml extras."""
 
 import os
 
@@ -10,7 +10,7 @@ APP = __about__.__title__
 
 
 def print_install_help() -> None:
-    """Prints recommendation to install bash2yaml[all]"""
+    """Prints recommendation to install bash2yaml extras."""
     if detect_environment() == "interactive" and not os.environ.get("BASH2YAML_HIDE_CORE_HELP"):
         if supports_underline():
             u = "\033[4m"
@@ -19,13 +19,16 @@ def print_install_help() -> None:
             u = ""
             r = ""
 
-        help_text = f"""To use interactive commands of {APP}, you should install the [all] extra.
+        help_text = f"""To use interactive commands of {APP}, install the [all] extra.
+To add only native-performance helpers, install the [fast] extra.
 
         {u}Command line (pip):{r}
             pip install "{APP}[all]"
+            pip install "{APP}[fast]"
 
         {u}Command line (uv / pipx / poetry run):{r}
             uv pip install "{APP}[all]"
+            uv pip install "{APP}[fast]"
             pipx install "{APP}[all]"
             poetry run pip install "{APP}[all]"
 

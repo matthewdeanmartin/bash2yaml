@@ -81,15 +81,19 @@ If your CI/CD configuration is simple or contained entirely within a single repo
 
 `bash2yaml` is a standalone command-line tool. Installation with `pipx` is recommended to avoid dependency conflicts.
 
-Install `[all]` extras for all commands. On your build server install just `bash2yaml` for the core libraries which
-allows you to run `compile`, `decompile` on server. This minimizes supply chain risks.
+Install `[all]` for every optional feature, `[fast]` for native speedups only, or `[pure-python-features]` for the
+optional command/UI stack without native extensions. The deprecated `[bitrab]` extra remains as a compatibility alias.
+On your build server you can still install plain `bash2yaml` for the core compile/decompile flow to minimize supply
+chain risk.
 
 ```bash
 # Recommended
 pipx install bash2yaml[all]
+pipx install bash2yaml[fast]
 
 # Or via pip
 pip install bash2yaml[all]
+pip install bash2yaml[pure-python-features]
 ```
 
 ## Getting Started: A Quick Tour
@@ -167,7 +171,6 @@ Run with
 | `detect-drift`      | Report what unexpected changes were made to the generated files. |
 | `show-config`       | Display config after cascade                                     |
 | `doctor`            | Look for environment problems                                    |
-| `graph`             | Generate graph of inline relationships                           |
 | `detect-uncompiled` | Detect if you forgot to compile                                  |
 | `validate`          | Validate JSON schema of all YAML in input and output             |
 
@@ -178,12 +181,8 @@ Run with
 | `check-pins`        | Analyze GitLab CI include: statements and suggest pinning to tags        |
 | `trigger-pipelines` | Trigger pipelines in GitLab projects and optionally wait for completion  |
 | `autogit`           | Manually trigger autogit process (stage, commit, and/or push changes)    |
-
-### Simulate Gitlab Pipeline Locally
-
-| Command | Description                                                                         |
-|:--------|:------------------------------------------------------------------------------------|
-| `run`   | Best efforts to run bash in a .gitlab-ci.yml file in similar order as a real runner |
+| `upgrade`           | Upgrade bash2yaml using your current install method                                 |
+| `check-updates`     | Check whether bash2yaml or its direct dependencies have upgrades                    |
 
 For detailed options on any command, run `bash2yaml <command> --help`.
 
@@ -231,7 +230,7 @@ To define variables that should be inlined into the global `variables:` block of
 | Metric            | Health                                                                                                                                                                                                            | Metric          | Info                                                                                                                                                                                                            |
 |:------------------|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:----------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Tests             | [![Tests](https://github.com/matthewdeanmartin/bash2yaml/actions/workflows/build.yml/badge.svg)](https://github.com/matthewdeanmartin/bash2yaml/actions/workflows/build.yml)                                  | License         | [![License](https://img.shields.io/github/license/matthewdeanmartin/bash2yaml)](https://raw.githubusercontent.com/matthewdeanmartin/bash2yaml/refs/heads/main/LICENSE)                                                        |
-| Coverage          | [![Codecov](https://codecov.io/gh/matthewdeanmartin/bash2yaml/branch/main/graph/badge.svg)](https://codecov.io/gh/matthewdeanmartin/bash2yaml)                                                                | PyPI            | [![PyPI](https://img.shields.io/pypi/v/bash2yaml)](https://pypi.org/project/bash2yaml/)                                                                                                                     |
+| Coverage          | [![Codecov](https://codecov.io/gh/matthewdeanmartin/bash2yaml/branch/main/badge.svg)](https://codecov.io/gh/matthewdeanmartin/bash2yaml)                                                                      | PyPI            | [![PyPI](https://img.shields.io/pypi/v/bash2yaml)](https://pypi.org/project/bash2yaml/)                                                                                                                     |
 | Lint / Pre-commit | [![pre-commit.ci status](https://results.pre-commit.ci/badge/github/matthewdeanmartin/bash2yaml/main.svg)](https://results.pre-commit.ci/latest/github/matthewdeanmartin/bash2yaml/main)                      | Python Versions | [![Python Version](https://img.shields.io/pypi/pyversions/bash2yaml)](https://pypi.org/project/bash2yaml/)                                                                                                  |
 | Quality Gate      | [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=matthewdeanmartin_bash2gitlab\&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=matthewdeanmartin_bash2gitlab)    | Docs            | [![Docs](https://readthedocs.org/projects/bash2yaml/badge/?version=latest)](https://bash2yaml.readthedocs.io/en/latest/)                                                                                    |
 | CI Build          | [![Build](https://github.com/matthewdeanmartin/bash2yaml/actions/workflows/build.yml/badge.svg)](https://github.com/matthewdeanmartin/bash2yaml/actions/workflows/build.yml)                                  | Downloads       | [![Downloads](https://static.pepy.tech/personalized-badge/bash2yaml?period=total\&units=international_system\&left_color=grey\&right_color=blue\&left_text=Downloads)](https://pepy.tech/project/bash2yaml) |

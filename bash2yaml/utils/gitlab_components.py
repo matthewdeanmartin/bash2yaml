@@ -189,10 +189,14 @@ def validate_spec_header(header_text: str) -> tuple[bool, list[str]]:
             continue
         unknown = set(options.keys()) - ALLOWED_INPUT_OPTION_KEYS
         if unknown:
-            errors.append(f"spec header: input '{input_name}' has unknown option(s) {sorted(unknown)}; allowed: {sorted(ALLOWED_INPUT_OPTION_KEYS)}")
+            errors.append(
+                f"spec header: input '{input_name}' has unknown option(s) {sorted(unknown)}; allowed: {sorted(ALLOWED_INPUT_OPTION_KEYS)}"
+            )
         input_type = options.get("type")
         if input_type is not None and input_type not in ALLOWED_INPUT_TYPES:
-            errors.append(f"spec header: input '{input_name}' has invalid type '{input_type}'; allowed: {sorted(ALLOWED_INPUT_TYPES)}")
+            errors.append(
+                f"spec header: input '{input_name}' has invalid type '{input_type}'; allowed: {sorted(ALLOWED_INPUT_TYPES)}"
+            )
         options_list = options.get("options")
         if options_list is not None and not isinstance(options_list, list):
             errors.append(f"spec header: input '{input_name}': 'options' must be a list")

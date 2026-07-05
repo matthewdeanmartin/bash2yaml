@@ -10,7 +10,7 @@ Supported commands:
 - Clean: Remove generated files
 - Lint: Validate YAML against GitLab
 - Utilities: Init, copy2local, detect-drift
-- Advanced: check-pins, trigger-pipelines, graph, run, detect-uncompiled, validate, autogit
+- Advanced: check-pins, trigger-pipelines, detect-uncompiled, validate, autogit
 - Git: Pre-commit hooks, directory mapping
 
 Features:
@@ -586,36 +586,6 @@ class Bash2YamlGUI:
         )
         ttk.Button(validate_opts, text="Validate", command=self.run_validate).pack(side=tk.LEFT, padx=20)
 
-        # Graph section
-        graph_frame = ttk.LabelFrame(
-            frame, text="Generate Dependency Graph - Visualize script relationships", padding=10
-        )
-        graph_frame.pack(fill=tk.X, padx=5, pady=5)
-
-        ttk.Label(graph_frame, text="Input Directory:", width=15).grid(row=0, column=0, sticky=tk.W, pady=2)
-        self.vars["graph_input"] = tk.StringVar()
-        ttk.Entry(graph_frame, textvariable=self.vars["graph_input"], width=40).grid(row=0, column=1, padx=5, pady=2)
-        ttk.Button(graph_frame, text="Browse", command=lambda: self.browse_directory(self.vars["graph_input"])).grid(
-            row=0, column=2, padx=5
-        )
-        ttk.Button(graph_frame, text="Generate Graph (DOT)", command=self.run_graph).grid(
-            row=1, column=0, columnspan=3, pady=10
-        )
-
-        # Run section
-        run_frame = ttk.LabelFrame(frame, text="Run Pipeline Locally - Best effort local execution", padding=10)
-        run_frame.pack(fill=tk.X, padx=5, pady=5)
-
-        ttk.Label(run_frame, text="GitLab CI File:", width=15).grid(row=0, column=0, sticky=tk.W, pady=2)
-        self.vars["run_input"] = tk.StringVar(value=".gitlab-ci.yml")
-        ttk.Entry(run_frame, textvariable=self.vars["run_input"], width=40).grid(row=0, column=1, padx=5, pady=2)
-        ttk.Button(run_frame, text="Browse", command=lambda: self.browse_file(self.vars["run_input"])).grid(
-            row=0, column=2, padx=5
-        )
-        ttk.Button(run_frame, text="Run Locally", command=self.run_pipeline).grid(
-            row=1, column=0, columnspan=3, pady=10
-        )
-
         # Detect uncompiled section
         detect_uncompiled_frame = ttk.LabelFrame(
             frame, text="Detect Uncompiled Changes - Check if recompilation needed", padding=10
@@ -1120,32 +1090,6 @@ class Bash2YamlGUI:
             return
 
         cmd = self.build_command("validate", options)
-        self.command_runner.run_command(cmd)
-
-    def run_graph(self) -> None:
-        """Run the graph command."""
-        if not self.command_runner:
-            return
-
-        input_dir = self.vars["graph_input"].get()
-        if not input_dir:
-            messagebox.showerror("Error", "Input directory is required!")
-            return
-
-        cmd = ["bash2yaml", "graph", "--in", input_dir]
-        self.command_runner.run_command(cmd)
-
-    def run_pipeline(self) -> None:
-        """Run the run command (execute pipeline locally)."""
-        if not self.command_runner:
-            return
-
-        input_file = self.vars["run_input"].get()
-        if not input_file:
-            messagebox.showerror("Error", "GitLab CI file is required!")
-            return
-
-        cmd = ["bash2yaml", "run", "--in-file", input_file]
         self.command_runner.run_command(cmd)
 
     def run_detect_uncompiled(self) -> None:

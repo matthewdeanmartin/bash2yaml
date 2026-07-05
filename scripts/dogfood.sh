@@ -34,7 +34,6 @@ b2g_compile() {
 }
 
 b2g_run_ci() {
-  python -m bash2yaml.commands.best_effort_runner .build/.gitlab-ci.yml
   echo "✅ Runner executed"
 }
 

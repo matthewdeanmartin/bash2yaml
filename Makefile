@@ -8,6 +8,8 @@ else
     VENV :=
 endif
 
+BASH_RUN := powershell -NoProfile -Command "& 'C:/Program Files/Git/bin/bash.exe'"
+
 uv.lock: pyproject.toml
 	@echo "Installing dependencies"
 	@uv sync --all-extras
@@ -18,8 +20,7 @@ clean-pyc:
 
 clean-test:
 	@echo "Removing coverage data"
-	@rm -f .coverage || true
-	@rm -f .coverage.* || true
+	@powershell -NoProfile -Command "Remove-Item -Force -ErrorAction SilentlyContinue '.coverage'; Remove-Item -Force -ErrorAction SilentlyContinue '.coverage.*'"
 
 clean: clean-pyc clean-test
 
@@ -27,29 +28,26 @@ clean: clean-pyc clean-test
 # tests are often slow and linting is fast, so run tests on linted code.
 test: clean uv.lock install_plugins
 	@echo "Running unit tests"
-	# $(VENV) pytest --doctest-modules bash2yaml
-	# $(VENV) python -m unittest discover
 	$(VENV) pytest test -vv -n 2 --cov=bash2yaml --cov-report=html --cov-fail-under 48 --cov-branch --cov-report=xml --junitxml=junit.xml -o junit_family=legacy --timeout=5 --session-timeout=600
-	bash ./scripts/basic_checks.sh
-#	$(VENV) bash basic_test_with_logging.sh
+	$(BASH_RUN) ./scripts/basic_checks.sh
 
 .PHONY: test-summary
 test-summary: clean uv.lock install_plugins
 	@echo "Running tests with summary output"
 	$(VENV) pytest test -q --tb=short --no-header --cov=bash2yaml --cov-fail-under 48 --cov-branch --timeout=5 --session-timeout=600
-	bash ./scripts/basic_checks.sh
+	$(BASH_RUN) ./scripts/basic_checks.sh
 
 .PHONY: test-llm
 test-llm: clean uv.lock install_plugins
 	@echo "Running tests (LLM-optimized output)"
 	NO_COLOR=1 $(VENV) pytest test -q --tb=line --no-header --color=no --cov=bash2yaml --cov-fail-under 48 --cov-branch --cov-report=term-missing:skip-covered --timeout=5 --session-timeout=600 2>&1 | head -100
-	bash ./scripts/basic_checks.sh
+	$(BASH_RUN) ./scripts/basic_checks.sh
 
 .PHONY: test-ci
 test-ci: clean uv.lock install_plugins
 	@echo "Running tests (CI mode)"
 	$(VENV) pytest test -v -n auto --tb=short --cov=bash2yaml --cov-report=html --cov-fail-under 48 --cov-branch --cov-report=xml --junitxml=junit.xml -o junit_family=legacy --timeout=5 --session-timeout=600
-	bash ./scripts/basic_checks.sh
+	$(BASH_RUN) ./scripts/basic_checks.sh
 
 .PHONY: isort
 isort:
@@ -65,15 +63,14 @@ ifeq ($(CI),true)
 else
 	@echo "Running locally"
 	jiggle_version hash-all
-	# jiggle_version bump --increment auto
 endif
 
 .PHONY: black
 black: isort jiggle_version
 	@echo "Formatting code"
 	$(VENV) metametameta pep621
-	$(VENV) black bash2yaml # --exclude .venv
-	$(VENV) black test # --exclude .venv
+	$(VENV) black bash2yaml
+	$(VENV) black test
 
 .PHONY: pre-commit
 pre-commit: isort black
@@ -134,7 +131,7 @@ publish: test
 
 .PHONY: mypy
 mypy:
-	$(VENV) echo $$PYTHONPATH
+	$(VENV) python -c "import os; print(os.environ.get('PYTHONPATH', ''))"
 	$(VENV) mypy bash2yaml --ignore-missing-imports --check-untyped-defs
 
 
@@ -159,14 +156,12 @@ check_spelling:
 	$(VENV) codespell docs --ignore-words=private_dictionary.txt
 
 check_changelog:
-	# pipx install keepachangelog-manager
 	$(VENV) changelogmanager validate
 
 check_all_docs: check_docs check_md check_spelling check_changelog
 
 check_self:
-	# Can it verify itself?
-	$(VENV) ./scripts/dog_food.sh
+	$(BASH_RUN) ./scripts/dog_food.sh
 
 #audit:
 #	# $(VENV) python -m bash2yaml audit
@@ -180,23 +175,15 @@ issues:
 	echo "N/A"
 
 core_all_tests:
-	./scripts/exercise_core_all.sh bash2yaml "compile --in examples/compile/src --out examples/compile/out --dry-run"
+	$(BASH_RUN) ./scripts/exercise_core_all.sh bash2yaml "compile --in examples/compile/src --out examples/compile/out --dry-run"
 	uv sync --all-extras
 
 update-schema:
-	@mkdir -p bash2yaml/schemas
+	@powershell -NoProfile -Command "New-Item -ItemType Directory -Force 'bash2yaml/schemas' | Out-Null"
 	@echo "Downloading GitLab CI schema..."
-	@if curl -fsSL "https://gitlab.com/gitlab-org/gitlab/-/raw/master/app/assets/javascripts/editor/schema/ci.json" -o bash2yaml/schemas/gitlab_ci_schema.json ; then \
-		echo "✅ Schema saved"; \
-	else \
-		echo "⚠️  Warning: Failed to download schema"; \
-	fi
+	@powershell -NoProfile -Command "try { Invoke-WebRequest -UseBasicParsing 'https://gitlab.com/gitlab-org/gitlab/-/raw/master/app/assets/javascripts/editor/schema/ci.json' -OutFile 'bash2yaml/schemas/gitlab_ci_schema.json'; Write-Host 'Schema saved'; } catch { Write-Warning 'Failed to download schema'; }"
 	@echo "Downloading NOTICE..."
-	@if curl -fsSL "https://gitlab.com/gitlab-org/gitlab/-/raw/master/app/assets/javascripts/editor/schema/NOTICE?ref_type=heads" -o bash2yaml/schemas/NOTICE.txt ; then \
-		echo "✅ NOTICE saved"; \
-	else \
-		echo "⚠️  Warning: Failed to download NOTICE"; \
-	fi
+	@powershell -NoProfile -Command "try { Invoke-WebRequest -UseBasicParsing 'https://gitlab.com/gitlab-org/gitlab/-/raw/master/app/assets/javascripts/editor/schema/NOTICE?ref_type=heads' -OutFile 'bash2yaml/schemas/NOTICE.txt'; Write-Host 'NOTICE saved'; } catch { Write-Warning 'Failed to download NOTICE'; }"
 
 # ── Dogfooding targets (independent, not wired into check) ───────────────────
 

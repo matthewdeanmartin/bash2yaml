@@ -429,19 +429,20 @@ to deploy your code to the other locations on your workstation.
 - **Workflow**: A debugging utility to run when you encounter unexpected behavior.
 - **Usage**: `bash2yaml doctor`
 
-### `graph`
-
-- **Description**: Analyzes your project's source files and generates a dependency graph in the DOT language. This graph
-  visualizes how your YAML files include scripts and how those scripts `source` other scripts.
-- **Workflow**: An analysis tool to help understand the structure and complexity of a large `bash2yaml` project.
-- **Usage**: `bash2yaml graph --in src`
-
 ### `show-config`
 
 - **Description**: Displays the current configuration that `bash2yaml` is using. It shows the final resolved values
   for all settings and indicates their source (e.g., environment variable, `.bash2yaml.toml`, or default).
 - **Workflow**: A debugging utility for troubleshooting configuration issues.
 - **Usage**: `bash2yaml show-config`
+
+### `upgrade` & `check-updates`
+
+- **Description**: Integrated self-update commands powered by `do_i_need_to_upgrade`. `upgrade` uses the current install
+  method when possible; `check-updates` reports available upgrades without changing anything.
+- **Workflow**: Maintenance helpers for normal CLI use. `bash2yaml` also performs a cached startup check and refreshes
+  the upgrade cache in the background during ordinary runs.
+- **Usage**: `bash2yaml upgrade --check`, `bash2yaml check-updates`
 
 ### `check-pins`
 

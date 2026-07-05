@@ -1,6 +1,8 @@
 # tests/test_cli.py
 from __future__ import annotations
 
+import builtins
+import importlib
 import sys
 from pathlib import Path
 from typing import Any
@@ -17,7 +19,9 @@ def no_update_and_no_argcomplete(monkeypatch):
     monkeypatch.setattr(m.argcomplete, "autocomplete", lambda *a, **k: None)
 
     # avoid real update checks
-    monkeypatch.setattr(m, "start_background_update_check", lambda *a, **k: None)
+    monkeypatch.setattr(m, "upgrade_startup_report", lambda: None)
+    monkeypatch.setattr(m, "upgrade_exit_report", lambda: None)
+    monkeypatch.setattr(m, "render_upgrade_notice", lambda report: None)
 
     # stub logging config generator but keep the requested level for assertions via attribute
     levels: list[str] = []
@@ -235,3 +239,95 @@ def test_init_uses_default_directory(monkeypatch, run_cli):
     code = run_cli(["bash2yaml", "init"])  # no directory arg
     assert code == 0
     assert called["init"] == "."
+
+
+def test_upgrade_command_dispatches(monkeypatch, run_cli):
+    import bash2yaml.__main__ as m
+    import bash2yaml.upgrade_integration as ui
+
+    if not ui.HAS_UPGRADE_SUPPORT:
+        pytest.skip("upgrade integration unavailable on this Python runtime")
+
+    monkeypatch.setattr(m, "run_upgrade_command", lambda args: 7)
+    code = run_cli(["bash2yaml", "upgrade", "--check"])
+    assert code == 7
+
+
+def test_upgrade_notice_lifecycle(monkeypatch, capsys, run_cli):
+    import bash2yaml.__main__ as m
+
+    callbacks: list[Any] = []
+    monkeypatch.setattr(m.atexit, "register", lambda cb: callbacks.append(cb))
+    monkeypatch.setattr(m, "upgrade_startup_report", lambda: "startup-report")
+    monkeypatch.setattr(m, "upgrade_exit_report", lambda: "exit-report")
+    monkeypatch.setattr(
+        m,
+        "render_upgrade_notice",
+        lambda report: {"startup-report": "startup notice", "exit-report": "exit notice", None: None}[report],
+    )
+    monkeypatch.setattr(m, "run_upgrade_command", lambda args: None)
+    monkeypatch.setattr(m, "run_cli", lambda args: 0)
+
+    code = run_cli(["bash2yaml", "doctor"])
+    assert code == 0
+    assert callbacks
+
+    callbacks[0]()
+    captured = capsys.readouterr()
+    assert "startup notice" in captured.err
+    assert "exit notice" in captured.err
+
+
+def test_upgrade_integration_skips_imports_on_python38(monkeypatch):
+    module_name = "bash2yaml.upgrade_integration"
+    original = sys.modules.pop(module_name, None)
+
+    monkeypatch.setattr(sys, "version_info", (3, 8, 18))
+
+    real_import = builtins.__import__
+
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name.startswith("do_i_need_to_upgrade"):
+            raise AssertionError("py38 path should not try to import do_i_need_to_upgrade")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    try:
+        module = importlib.import_module(module_name)
+        assert module.HAS_UPGRADE_SUPPORT is False
+        assert module.run_command(object()) is None
+        assert module.startup_report() is None
+        assert module.exit_report() is None
+    finally:
+        sys.modules.pop(module_name, None)
+        if original is not None:
+            sys.modules[module_name] = original
+
+
+def test_upgrade_integration_skips_cleanly_when_dependency_missing(monkeypatch):
+    module_name = "bash2yaml.upgrade_integration"
+    original = sys.modules.pop(module_name, None)
+
+    monkeypatch.setattr(sys, "version_info", (3, 13, 0))
+
+    real_import = builtins.__import__
+
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name.startswith("do_i_need_to_upgrade"):
+            raise ModuleNotFoundError(name)
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    try:
+        module = importlib.import_module(module_name)
+        assert module.HAS_UPGRADE_SUPPORT is False
+        assert module.add_commands(object()) is None
+        assert module.run_command(object()) is None
+        assert module.startup_report() is None
+        assert module.exit_report() is None
+    finally:
+        sys.modules.pop(module_name, None)
+        if original is not None:
+            sys.modules[module_name] = original

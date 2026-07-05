@@ -156,13 +156,21 @@ def run_validate_all(
         if not input_dir.exists():
             say(f"{Colors.FAIL}Error: Input directory does not exist: {input_dir}{Colors.ENDC}")
             if as_json:
-                print(orjson.dumps({"command": "validate", "error": f"Input directory does not exist: {input_dir}"}).decode())
+                print(
+                    orjson.dumps(
+                        {"command": "validate", "error": f"Input directory does not exist: {input_dir}"}
+                    ).decode()
+                )
             return 2
 
         if not input_dir.is_dir():
             say(f"{Colors.FAIL}Error: Input path is not a directory: {input_dir}{Colors.ENDC}")
             if as_json:
-                print(orjson.dumps({"command": "validate", "error": f"Input path is not a directory: {input_dir}"}).decode())
+                print(
+                    orjson.dumps(
+                        {"command": "validate", "error": f"Input path is not a directory: {input_dir}"}
+                    ).decode()
+                )
             return 2
 
         # Find all YAML files

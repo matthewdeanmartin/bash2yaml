@@ -47,12 +47,12 @@ check "bash2yaml trigger-pipelines --help" run_bash2yaml trigger-pipelines --hel
 check "bash2yaml install-precommit --help" run_bash2yaml install-precommit --help
 check "bash2yaml uninstall-precommit --help" run_bash2yaml uninstall-precommit --help
 check "bash2yaml doctor --help" run_bash2yaml doctor --help
-check "bash2yaml graph --help" run_bash2yaml graph --help
 check "bash2yaml show-config --help" run_bash2yaml show-config --help
-check "bash2yaml run --help" run_bash2yaml run --help
 check "bash2yaml detect-uncompiled --help" run_bash2yaml detect-uncompiled --help
 check "bash2yaml validate --help" run_bash2yaml validate --help
 check "bash2yaml autogit --help" run_bash2yaml autogit --help
+check "bash2yaml upgrade --help" run_bash2yaml upgrade --help
+check "bash2yaml check-updates --help" run_bash2yaml check-updates --help
 
 echo ""
 echo "=== Results: ${PASS} passed, ${FAIL} failed ==="

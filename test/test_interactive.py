@@ -216,22 +216,6 @@ class TestTriggerPipelinesHandler:
         assert params["poll_interval"] == 60
 
 
-class TestRunHandler:
-    """Test the run command handler."""
-
-    def test_handle_run_command_default(self, interface, mock_prompt, mock_confirm):
-        """Test run handler with default file."""
-        # Arrange
-        mock_prompt.ask.side_effect = [".gitlab-ci.yml"]
-        mock_confirm.ask.side_effect = [False, False, False]  # dry_run, verbose, quiet
-
-        # Act
-        params = interface.handle_run_command()
-
-        # Assert
-        assert params["input_file"] == ".gitlab-ci.yml"
-
-
 class TestAutogitHandler:
     """Test the autogit command handler."""
 

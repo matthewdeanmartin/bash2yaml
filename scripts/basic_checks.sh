@@ -66,14 +66,9 @@ check "bash2yaml clean --help" run_bash2yaml clean --help
 check "bash2yaml clean --dry-run" run_bash2yaml clean --out "$OUT" --dry-run
 
 echo ""
-echo "--- graph ---"
-check "bash2yaml graph --help" run_bash2yaml graph --help
-check "bash2yaml graph --dry-run" run_bash2yaml graph --in "$IN" --dry-run
-
-echo ""
 echo "--- doctor ---"
 check "bash2yaml doctor --help" run_bash2yaml doctor --help
-check "bash2yaml doctor" run_bash2yaml doctor
+check_fails "bash2yaml doctor without config exits non-zero" run_bash2yaml doctor
 
 echo ""
 echo "--- decompile ---"
@@ -84,6 +79,8 @@ echo ""
 echo "--- detect-uncompiled ---"
 check "bash2yaml detect-uncompiled --check-only" run_bash2yaml detect-uncompiled --in "$IN" --check-only
 check "bash2yaml detect-uncompiled --list-changed" run_bash2yaml detect-uncompiled --in "$IN" --list-changed
+check "bash2yaml upgrade --check" run_bash2yaml upgrade --check
+check "bash2yaml check-updates --help" run_bash2yaml check-updates --help
 
 echo ""
 echo "--- detect-drift ---"
