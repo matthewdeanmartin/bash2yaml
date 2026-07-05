@@ -115,6 +115,11 @@ llm-check: uv.lock
 ci-check: mypy test-ci pylint bandit update-schema
 	@echo "✅ CI checks complete"
 
+# check-ci: stable alias for the build server (same as ci-check). No formatting
+# check here — formatting happens locally, not on paid build minutes.
+.PHONY: check-ci
+check-ci: ci-check
+
 .PHONY: full-check
 full-check: mypy test pylint bandit update-schema
 	@echo "✅ Full checks complete"
