@@ -125,10 +125,17 @@ ci-check: mypy test-ci pylint bandit update-schema
 check-ci: ci-check
 
 .PHONY: full-check
-full-check: mypy test pylint bandit update-schema
+full-check: mypy test pylint bandit update-schema check-dist
 	@echo "✅ Full checks complete"
 
-check: mypy test pylint bandit update-schema
+check: mypy test pylint bandit update-schema check-dist
+
+.PHONY: check-dist
+check-dist:
+	@echo "Verifying distribution contents"
+	@python -c "import shutil; shutil.rmtree('.build/dist-check', ignore_errors=True)"
+	uv build --out-dir .build/dist-check --no-sources
+	$(VENV) python scripts/verify_distribution.py .build/dist-check
 
 #.PHONY: publish_test
 #publish_test:

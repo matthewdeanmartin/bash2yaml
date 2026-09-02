@@ -16,7 +16,12 @@ from pathlib import Path
 from typing import Any
 
 import jsonschema
-import orjson as json
+try:
+    import orjson as json  # faster JSON when available
+    _json_dumps_str = lambda obj: json.dumps(obj).decode()  # orjson returns bytes
+except ImportError:
+    import json  # type: ignore[no-redef]  # stdlib fallback (Python 3.15 before orjson wheels)
+    _json_dumps_str = json.dumps  # stdlib already returns str
 import ruamel.yaml
 
 logger = logging.getLogger(__name__)
@@ -71,7 +76,7 @@ class SemaphoreValidator:
         try:
             self.cache_dir.mkdir(parents=True, exist_ok=True)
             with open(self.cache_file, "w", encoding="utf-8") as f:
-                f.write(json.dumps(schema).decode())
+                f.write(_json_dumps_str(schema))
         except OSError as e:
             logger.warning("Failed to save schema to cache: %s", e)
 

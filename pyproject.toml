@@ -193,20 +193,11 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 
-[tool.hatch.build.targets.wheel.sources]
-"schemas" = "bash2yaml/schemas"
-
 [tool.hatch.build.targets.wheel]
 packages = ["bash2yaml"]
-include = [
-    "bash2yaml/**/*.py",
-    "bash2yaml/schemas/**/*.json",
-    "bash2yaml/py.typed",
-    "/README.md", "LICENSE",
-]
 
 [tool.hatch.build.targets.sdist]
-include = ["/README.md", "LICENSE", "/bash2yaml", "/tests"]
+include = ["/README.md", "/LICENSE", "/bash2yaml", "/test"]
 
 
 [tool.black]

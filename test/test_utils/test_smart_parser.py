@@ -30,8 +30,8 @@ def test_invalid_subcommand_suggests_close_match(parser, capsys):
     err = capsys.readouterr().err
     # sanity: usage header is printed
     assert "usage:" in err
-    # our enhanced message shows the candidate
-    assert "Did you mean:" in err
+    # our enhanced message (or Python 3.15's native argparse suggestion) shows the candidate
+    assert "Did you mean:" in err or "maybe you meant" in err
     assert "install" in err
 
 

@@ -9,7 +9,26 @@ from typing import Any, Literal
 from urllib.parse import quote_plus
 
 import certifi
-import orjson  # Using orjson for JSON operations as in the helper
+try:
+    import orjson as _orjson  # faster JSON when available
+
+    def _json_loads(data: bytes | str) -> Any:
+        return _orjson.loads(data)
+
+    def _json_dumps(obj: Any, **kwargs: Any) -> str:
+        indent = kwargs.pop("indent", None)
+        option = _orjson.OPT_INDENT_2 if indent else None
+        return _orjson.dumps(obj, option=option, **kwargs).decode("utf-8")
+
+except ImportError:
+    import json as _json  # stdlib fallback (e.g. on Python 3.15 before orjson wheels land)
+
+    def _json_loads(data: bytes | str) -> Any:  # type: ignore[misc]
+        return _json.loads(data)
+
+    def _json_dumps(obj: Any, **kwargs: Any) -> str:  # type: ignore[misc]
+        kwargs.setdefault("indent", 2)
+        return _json.dumps(obj, **kwargs)
 import urllib3
 from packaging.version import InvalidVersion, Version
 from ruamel.yaml import YAML
@@ -33,7 +52,7 @@ class SimpleResponse:
         """Parse response data as JSON."""
         if not self.data:
             return None
-        return orjson.loads(self.data)
+        return _json_loads(self.data)
 
 
 @dataclass(frozen=True)
@@ -536,5 +555,5 @@ def analyses_to_json(analyses: list[IncludeAnalysis]) -> str:
             return list(o)
         raise TypeError(f"Object of type {type(o).__name__} is not JSON serializable")
 
-    # Use orjson for performance, returns bytes so we decode to string.
-    return orjson.dumps(analyses, default=encode, option=orjson.OPT_INDENT_2).decode("utf-8")
+    # Use orjson for performance when available, otherwise fall back to stdlib json.
+    return _json_dumps(analyses, default=encode, indent=2)

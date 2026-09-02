@@ -83,6 +83,8 @@ jobs:
         run: uv sync --frozen
       - name: Build
         run: uv build --no-sources
+      - name: Verify distribution contents
+        run: uv run python scripts/verify_distribution.py dist
       - name: Verify dist version matches release
         env:
           EXPECTED: ${{ needs.bump.outputs.version }}

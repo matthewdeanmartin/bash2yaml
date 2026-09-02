@@ -9,7 +9,17 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
-import orjson
+try:
+    import orjson as _orjson
+
+    def _json_dumps(obj: object) -> str:
+        return _orjson.dumps(obj).decode()
+
+except ImportError:
+    import json as _stdlib_json  # stdlib fallback (e.g. Python 3.15 before orjson wheels)
+
+    def _json_dumps(obj: object) -> str:  # type: ignore[misc]
+        return _stdlib_json.dumps(obj)
 
 from bash2yaml.targets.base import BaseTarget
 from bash2yaml.utils.terminal_colors import Colors
@@ -84,7 +94,7 @@ def write_results_to_output(results: list[ValidationResult], output_path: Path) 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     with open(output_path, "w", encoding="utf-8") as f:
-        f.write(orjson.dumps(output_data).decode())
+        f.write(_json_dumps(output_data))
 
 
 def print_validation_summary(results: list[ValidationResult]) -> None:
@@ -127,7 +137,7 @@ def results_to_json(results: list[ValidationResult]) -> str:
             {"file": str(result.file_path), "is_valid": result.is_valid, "errors": result.errors} for result in results
         ],
     }
-    return orjson.dumps(output_data).decode()
+    return _json_dumps(output_data)
 
 
 def run_validate_all(
@@ -156,21 +166,13 @@ def run_validate_all(
         if not input_dir.exists():
             say(f"{Colors.FAIL}Error: Input directory does not exist: {input_dir}{Colors.ENDC}")
             if as_json:
-                print(
-                    orjson.dumps(
-                        {"command": "validate", "error": f"Input directory does not exist: {input_dir}"}
-                    ).decode()
-                )
+                print(_json_dumps({"command": "validate", "error": f"Input directory does not exist: {input_dir}"}))
             return 2
 
         if not input_dir.is_dir():
             say(f"{Colors.FAIL}Error: Input path is not a directory: {input_dir}{Colors.ENDC}")
             if as_json:
-                print(
-                    orjson.dumps(
-                        {"command": "validate", "error": f"Input path is not a directory: {input_dir}"}
-                    ).decode()
-                )
+                print(_json_dumps({"command": "validate", "error": f"Input path is not a directory: {input_dir}"}))
             return 2
 
         # Find all YAML files
