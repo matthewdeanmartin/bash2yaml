@@ -198,8 +198,6 @@ class BaseTarget(abc.ABC):
         Used for auto-detection when ``--target`` is not specified.
         The default implementation returns ``False``.
         """
-        # Keep extension-point parameter names stable; pluggy-style integrations
-        # match provided arguments by name rather than position.
         _ = filename
         return False
 
@@ -208,7 +206,5 @@ class BaseTarget(abc.ABC):
 
         Used for auto-detection. The default implementation returns ``False``.
         """
-        # Keep extension-point parameter names stable; pluggy-style integrations
-        # match provided arguments by name rather than position.
         _ = path
         return False

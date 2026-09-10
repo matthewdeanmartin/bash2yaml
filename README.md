@@ -1,5 +1,7 @@
 # bash2yaml
 
+Requires **Python 3.11 or newer**.
+
 > Compile pure Bash scripts into your CI/CD YAML. Get IDE support for your scripts while keeping them centralized.
 
 Tired of writing Bash inside YAML strings with no syntax highlighting, linting, or testing? `bash2yaml` lets you

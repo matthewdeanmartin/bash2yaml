@@ -6,16 +6,16 @@ validate the output.
 
 ## Currently Supported
 
-| Target                | `--target` value | Default Output File          | Script Keys                                     | Variables Key  |
+| Target | `--target` value | Default Output File | Script Keys | Variables Key |
 |:----------------------|:-----------------|:-----------------------------|:------------------------------------------------|:---------------|
-| GitLab CI             | `gitlab`         | `.gitlab-ci.yml`             | `script`, `before_script`, `after_script`       | `variables:`   |
-| GitHub Actions        | `github`         | `workflow.yml`               | `run` (in steps)                                | `env:`         |
-| CircleCI              | `circleci`       | `config.yml`                 | `command` (in run steps)                        | `environment:` |
-| AWS CodeBuild         | `buildspec`      | `buildspec.yml`              | `commands` (in phases)                          | `variables:`   |
-| Bitbucket Pipelines   | `bitbucket`      | `bitbucket-pipelines.yml`    | `script`, `after-script`                        | *(none)*       |
-| Semaphore CI          | `semaphore`      | `.semaphore/semaphore.yml`   | `commands`                                      | *(none)*       |
+| GitLab CI | `gitlab` | `.gitlab-ci.yml` | `script`, `before_script`, `after_script` | `variables:` |
+| GitHub Actions | `github` | `workflow.yml` | `run` (in steps) | `env:` |
+| CircleCI | `circleci` | `config.yml` | `command` (in run steps) | `environment:` |
+| AWS CodeBuild | `buildspec` | `buildspec.yml` | `commands` (in phases) | `variables:` |
+| Bitbucket Pipelines | `bitbucket` | `bitbucket-pipelines.yml` | `script`, `after-script` | *(none)* |
+| Semaphore CI | `semaphore` | `.semaphore/semaphore.yml` | `commands` | *(none)* |
 
----
+______________________________________________________________________
 
 ## Specifying a Target
 
@@ -48,7 +48,7 @@ If you don't specify a target, bash2yaml will try to detect it automatically:
 
 If auto-detection is ambiguous or fails, bash2yaml defaults to `gitlab` for backward compatibility.
 
----
+______________________________________________________________________
 
 ## GitLab CI
 
@@ -80,7 +80,7 @@ build-job:
 - **Reserved keys**: `stages`, `variables`, `include`, `default`, `workflow`, `image`, `services`, `cache`,
   `before_script`, `after_script`, and others are recognized as non-job keys.
 
----
+______________________________________________________________________
 
 ## GitHub Actions
 
@@ -128,17 +128,17 @@ jobs:
 
 ### Differences from GitLab at a glance
 
-| Concept                | GitLab CI                     | GitHub Actions                      |
+| Concept | GitLab CI | GitHub Actions |
 |:-----------------------|:------------------------------|:------------------------------------|
-| Jobs location          | Top-level keys                | Nested under `jobs:`                |
-| Script format          | Array of strings (`script:`)  | Multiline string (`run: \|`)        |
-| Variables key          | `variables:`                  | `env:`                              |
-| Variable scopes        | Global + job                  | Workflow + job + step               |
-| Reusable actions       | `include:`                    | `uses:` (left untouched)            |
-| before/after scripts   | `before_script:`/`after_script:` | Modeled as separate steps        |
-| Lint API               | GitLab CI Lint API            | Schema validation only              |
+| Jobs location | Top-level keys | Nested under `jobs:` |
+| Script format | Array of strings (`script:`) | Multiline string (`run: \|`) |
+| Variables key | `variables:` | `env:` |
+| Variable scopes | Global + job | Workflow + job + step |
+| Reusable actions | `include:` | `uses:` (left untouched) |
+| before/after scripts | `before_script:`/`after_script:` | Modeled as separate steps |
+| Lint API | GitLab CI Lint API | Schema validation only |
 
----
+______________________________________________________________________
 
 ## CircleCI
 
@@ -175,7 +175,7 @@ jobs:
 - **Validation**: Schema validation against the SchemaStore CircleCI schema. No API-based lint.
 - **Reserved keys**: `version`, `orbs`, `workflows`, `executors`, `commands`, `parameters`, `jobs`.
 
----
+______________________________________________________________________
 
 ## AWS CodeBuild
 
@@ -215,7 +215,7 @@ phases:
 - **Validation**: Schema validation using a bundled fallback schema (no official JSON schema URL available).
 - **Reserved keys**: `version`, `env`, `phases`, `artifacts`, `cache`, `reports`, `proxy`.
 
----
+______________________________________________________________________
 
 ## Bitbucket Pipelines
 
@@ -264,15 +264,15 @@ pipelines:
 
 ### Pipeline trigger structure
 
-| Trigger          | YAML key         | Shape                                    |
+| Trigger | YAML key | Shape |
 |:-----------------|:-----------------|:-----------------------------------------|
-| Default          | `default`        | List of step-groups                      |
-| Branch patterns  | `branches`       | Dict of `pattern` → list of step-groups  |
-| Tag patterns     | `tags`           | Dict of `pattern` → list of step-groups  |
-| Pull requests    | `pull-requests`  | Dict of `pattern` → list of step-groups  |
-| Manual pipelines | `custom`         | Dict of `name` → list of step-groups     |
+| Default | `default` | List of step-groups |
+| Branch patterns | `branches` | Dict of `pattern` → list of step-groups |
+| Tag patterns | `tags` | Dict of `pattern` → list of step-groups |
+| Pull requests | `pull-requests` | Dict of `pattern` → list of step-groups |
+| Manual pipelines | `custom` | Dict of `name` → list of step-groups |
 
----
+______________________________________________________________________
 
 ## Semaphore CI
 
@@ -320,11 +320,11 @@ blocks:
 - **Reserved keys**: `version`, `name`, `agent`, `promotions`, `queue`, `fail_fast`, `auto_cancel`,
   `global_job_config`.
 
----
+______________________________________________________________________
 
-## Third-Party Targets via Plugins
+## Adding a Built-in Target
 
-bash2yaml uses [pluggy](https://pluggy.readthedocs.io/) for extensibility. You can create a target for any CI/CD
-platform and register it as a plugin — no changes to bash2yaml itself are needed.
+Add CI/CD platform support by implementing `BaseTarget` and including it in the built-in registry.
+External target plugins are no longer supported.
 
 See [Adding a New Target](NEW_TARGET_TASKS.md) for a step-by-step guide.

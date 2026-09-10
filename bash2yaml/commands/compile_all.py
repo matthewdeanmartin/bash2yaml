@@ -23,7 +23,6 @@ from bash2yaml.commands.hash_path_helpers import find_hash_file, get_output_hash
 from bash2yaml.commands.input_change_detector import mark_compilation_complete, needs_compilation
 from bash2yaml.config import config
 from bash2yaml.errors.exceptions import Bash2YamlError, CompileError, ValidationFailed
-from bash2yaml.plugins import get_pm
 from bash2yaml.targets.base import BaseTarget
 from bash2yaml.utils import diff_helpers
 from bash2yaml.utils.attribution import quiet_attribution_enabled
@@ -241,14 +240,8 @@ def process_script_list(
             continue
 
         # Plain string: attempt to detect and inline scripts
-        pm = get_pm()
-        script_path_str = pm.hook.extract_script_path(line=item) or None
-        if script_path_str is None:
-            # try existing extract_script_path fallback
-            script_path_str = extract_script_path(item)
-            scripts_found.append(script_path_str)
-        else:
-            scripts_found.append(script_path_str)
+        script_path_str = extract_script_path(item)
+        scripts_found.append(script_path_str)
 
         if script_path_str:
             if script_path_str.strip().startswith("./") or script_path_str.strip().startswith(".\\"):
@@ -303,24 +296,12 @@ def process_script_list(
                 scripts_found.append(str(artifact_path))
                 processed_items.extend(artifact_inline)
             else:
-                # NEW: interpreter-based script inlining (python/node/ruby/php/fish)
-                interp_inline, script_path_str_other = pm.hook.inline_command(line=item, scripts_root=scripts_root) or (
-                    None,
-                    None,
-                )
-                if interp_inline:
-                    scripts_found.append(script_path_str_other)
+                interp_inline, script_path_str_other = maybe_inline_interpreter_command(item, scripts_root)
+                if interp_inline and script_path_str_other:
+                    scripts_found.append(str(script_path_str_other))
                     processed_items.extend(interp_inline)
                 else:
-                    interp_inline, script_path_str_other = maybe_inline_interpreter_command(item, scripts_root)
-                    if interp_inline and isinstance(interp_inline, list) and script_path_str_other:
-                        scripts_found.append(str(script_path_str_other))
-                        processed_items.extend(interp_inline)
-                    elif interp_inline and isinstance(interp_inline, str) and script_path_str_other:
-                        scripts_found.append(str(script_path_str_other))
-                        processed_items.append(interp_inline)
-                    else:
-                        processed_items.append(item)
+                    processed_items.append(item)
 
     # Decide output representation
     only_plain_strings = all(isinstance(_, str) for _ in processed_items)

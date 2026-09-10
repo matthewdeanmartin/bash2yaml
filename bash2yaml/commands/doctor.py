@@ -15,7 +15,6 @@ from bash2yaml.commands.doctor_checks import (
     check_lint_config_validity,
     check_map_source_paths_exist,
     check_precommit_hook_status,
-    list_active_plugins,
 )
 from bash2yaml.commands.input_change_detector import needs_compilation
 from bash2yaml.commands.map_commit import run_commit_map
@@ -230,9 +229,6 @@ def run_doctor() -> int:
     lint_warnings = check_lint_config_validity(config)
     if not check("Lint configuration is valid and reachable", not lint_warnings, lint_warnings):
         flag_issue()
-
-    plugins = list_active_plugins()
-    check("Checking for active plugins", True, plugins if plugins else ["No third-party plugins found."])
 
     print(f"  - Bash version: {get_command_version('bash')}")
     print(f"  - Git version:  {get_command_version('git')}")

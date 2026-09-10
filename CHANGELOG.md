@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Minimum supported Python version is now 3.11; tooling and test matrices use the new baseline.
+
+### Removed
+
+- Pluggy runtime dependency, plugin discovery, hooks, and external target registration.
+  Built-in targets, script inlining, and `--autogit` remain available through direct calls.
+
 ### Added
 
 - GitHub Actions reusable workflow support (Phase 2, GitHub column). The

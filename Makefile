@@ -30,25 +30,25 @@ clean: clean-pyc clean-test
 
 # tests can't be expected to pass if dependencies aren't installed.
 # tests are often slow and linting is fast, so run tests on linted code.
-test: clean uv.lock install_plugins
+test: clean uv.lock
 	@echo "Running unit tests"
 	$(VENV) pytest test -vv -n 2 --cov=bash2yaml --cov-report=html --cov-fail-under 48 --cov-branch --cov-report=xml --junitxml=junit.xml -o junit_family=legacy --timeout=5 --session-timeout=600
 	$(BASH_RUN) ./scripts/basic_checks.sh
 
 .PHONY: test-summary
-test-summary: clean uv.lock install_plugins
+test-summary: clean uv.lock
 	@echo "Running tests with summary output"
 	$(VENV) pytest test -q --tb=short --no-header --cov=bash2yaml --cov-fail-under 48 --cov-branch --timeout=5 --session-timeout=600
 	$(BASH_RUN) ./scripts/basic_checks.sh
 
 .PHONY: test-llm
-test-llm: clean uv.lock install_plugins
+test-llm: clean uv.lock
 	@echo "Running tests (LLM-optimized output)"
 	NO_COLOR=1 $(VENV) pytest test -q --tb=line --no-header --color=no --cov=bash2yaml --cov-fail-under 48 --cov-branch --cov-report=term-missing:skip-covered --timeout=5 --session-timeout=600 2>&1 | head -100
 	$(BASH_RUN) ./scripts/basic_checks.sh
 
 .PHONY: test-ci
-test-ci: clean uv.lock install_plugins
+test-ci: clean uv.lock
 	@echo "Running tests (CI mode)"
 	$(VENV) pytest test -v -n auto --tb=short --cov=bash2yaml --cov-report=html --cov-fail-under 48 --cov-branch --cov-report=xml --junitxml=junit.xml -o junit_family=legacy --timeout=5 --session-timeout=600
 	$(BASH_RUN) ./scripts/basic_checks.sh
@@ -56,17 +56,17 @@ test-ci: clean uv.lock install_plugins
 .PHONY: isort
 isort:
 	@echo "Formatting imports"
-	$(VENV) isort .
+	$(VENV) isort bash2yaml test scripts just_import.py
 
 .PHONY: jiggle_version
 
 jiggle_version:
 ifeq ($(CI),true)
 	@echo "Running in CI mode"
-	jiggle_version check
+	$(VENV) jiggle_version check
 else
 	@echo "Running locally"
-	jiggle_version hash-all
+	$(VENV) jiggle_version hash-all
 endif
 
 .PHONY: black
@@ -182,9 +182,6 @@ check_self:
 #audit:
 #	# $(VENV) python -m bash2yaml audit
 #	$(VENV) tool_audit single bash2yaml --version=">=2.0.0"
-
-install_plugins:
-	echo "N/A"
 
 .PHONY: issues
 issues:

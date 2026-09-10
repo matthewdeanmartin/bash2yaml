@@ -14,22 +14,6 @@ from bash2yaml.utils.yaml_factory import get_yaml
 # ---------- helpers for monkeypatching ----------
 
 
-class _DummyHook:
-    """Very small plugin hook stub so we don't depend on real plugin discovery."""
-
-    def extract_script_path(self, line: str) -> str | None:
-        # We accept either "./script.sh" or "bash ./script.sh" style lines
-        return "./script.sh" if "script.sh" in line else None
-
-    def inline_command(self, line: str, scripts_root: Path):
-        # No interpreter-based inlining in these tests
-        return None
-
-
-class _DummyPM:
-    hook = _DummyHook()
-
-
 def _read_bash_script_passthrough(path: Path, **_kwargs) -> str:
     return Path(path).read_text(encoding="utf-8")
 
@@ -58,12 +42,10 @@ def minimal_monkeypatch(monkeypatch):
     """
     Apply minimal, targeted monkeypatches across tests:
 
-    - Plugin manager -> tiny stub that can find "./script.sh"
     - Bash reader -> just reads the file from disk
     - CI validator -> always OK (we're not testing GitLab API here)
     - Diff helpers -> light stubs to avoid depending on formatting details
     """
-    monkeypatch.setattr(mod, "get_pm", lambda: _DummyPM())
     monkeypatch.setattr(mod, "read_bash_script", _read_bash_script_passthrough)
 
     # validator lives in class GitLabCIValidator; patch its method

@@ -278,33 +278,6 @@ def test_upgrade_notice_lifecycle(monkeypatch, capsys, run_cli):
     assert "exit notice" in captured.err
 
 
-def test_upgrade_integration_skips_imports_on_python38(monkeypatch):
-    module_name = "bash2yaml.upgrade_integration"
-    original = sys.modules.pop(module_name, None)
-
-    monkeypatch.setattr(sys, "version_info", (3, 8, 18))
-
-    real_import = builtins.__import__
-
-    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
-        if name.startswith("do_i_need_to_upgrade"):
-            raise AssertionError("py38 path should not try to import do_i_need_to_upgrade")
-        return real_import(name, globals, locals, fromlist, level)
-
-    monkeypatch.setattr(builtins, "__import__", fake_import)
-
-    try:
-        module = importlib.import_module(module_name)
-        assert module.HAS_UPGRADE_SUPPORT is False
-        assert module.run_command(object()) is None
-        assert module.startup_report() is None
-        assert module.exit_report() is None
-    finally:
-        sys.modules.pop(module_name, None)
-        if original is not None:
-            sys.modules[module_name] = original
-
-
 def test_upgrade_integration_skips_cleanly_when_dependency_missing(monkeypatch):
     module_name = "bash2yaml.upgrade_integration"
     original = sys.modules.pop(module_name, None)

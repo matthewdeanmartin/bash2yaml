@@ -219,3 +219,6 @@ source_condensed.md
 junit.xml
 SOURCE.md
 .bash2yaml
+
+# Local distribution verification and isolated install environments
+/.build/

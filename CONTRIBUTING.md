@@ -5,7 +5,7 @@
 - Open a ticket for a bug or feature.
 - Customize via configuration, see [example config](examples/sample_config/pyproject.toml)
 - Merge request. Open ticket, check if anyone is home, see below for house style and build.
-- Plugins. Basic support for pluggy.
+- Built-in target adapters for supported CI platforms.
 - Extend via public API. Public python API might not be super stable yet, consider pinning your version.
 - Extend via orchestration tool, e.g. Justfile, Makefile. Some of the most obvious improvements would be a built-in
   formatter or linter, which I'm avoiding because there are so may complications with dependencies on tools that are not
@@ -29,7 +29,7 @@ make check
 Check Python compatibility across the lowest supported, current, and upcoming versions:
 
 ```bash
-tox -e py38,py313,py314
+tox -e py311,py313,py314
 ```
 
 ## Scope
@@ -49,7 +49,7 @@ After I've already named and published this tool, it occurs to me that I could r
 ## 1. General Principles
 
 - **Docstrings:** All public functions, classes, and modules have Google-style docstrings.
-- **Type Annotations:** Required for all function parameters and return values (including `None`). Prefer Python 3.9+
+- **Type Annotations:** Required for all function parameters and return values (including `None`). Prefer Python 3.11+
   built-in generics (`list[str]`, `dict[str, Any]`).
 - **Line Length:** Soft limit at 120 characters; 140 characters allowed if it improves clarity.
 

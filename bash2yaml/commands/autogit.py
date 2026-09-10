@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import argparse
 import logging
 import subprocess  # nosec: B404
 from pathlib import Path
 from typing import Literal
 
-from bash2yaml.config import Config
+from bash2yaml.config import Config, config
 from bash2yaml.errors.exceptions import Bash2YamlError, ConfigInvalid
+from bash2yaml.errors.exit_codes import ExitCode
 
 logger = logging.getLogger(__name__)
 
@@ -154,3 +156,23 @@ def run_autogit(config: Config, commit_message: str | None = None) -> int:
     except Exception as e:
         logger.error(f"An unexpected error occurred during autogit: {e}", exc_info=True)
         return 1
+
+
+def autogit_after_command(result: int, args: argparse.Namespace) -> None:
+    """If a command was successful and --autogit was passed, run autogit."""
+    if result != ExitCode.OK:
+        return
+
+    if not getattr(args, "autogit", False):
+        return
+
+    logger.info("Command successful, triggering autogit...")
+    try:
+        # The message for --autogit will always come from config.
+        autogit_result = run_autogit(config=config, commit_message=None)
+        if autogit_result != 0:
+            logger.error("Autogit process failed.")
+
+    except Exception as e:
+        logger.error("An unexpected error occurred during autogit: %s", e, exc_info=False)
+        logger.debug("Traceback for autogit failure:", exc_info=True)

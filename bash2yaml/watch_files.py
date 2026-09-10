@@ -25,7 +25,6 @@ from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
 from bash2yaml.commands.compile_all import run_compile_all
-from bash2yaml.plugins import get_pm
 
 logger = logging.getLogger(__name__)
 
@@ -60,9 +59,6 @@ class _RecompileHandler(FileSystemEventHandler):
         if event.src_path.endswith((".tmp", ".swp", "~")):  # type: ignore[arg-type]
             return
         exts = {".yml", ".yaml", ".sh", ".bash"}
-        for extra in get_pm().hook.watch_file_extensions():
-            if extra:
-                exts.update(extra)
         if not event.src_path.endswith(tuple(exts)):  # type: ignore[arg-type]
             return
 

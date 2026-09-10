@@ -3,8 +3,8 @@ from __future__ import annotations
 from enum import IntEnum
 from subprocess import CalledProcessError  # nosec
 
-from bash2yaml import PrecommitHookError
 from bash2yaml.commands.compile_bash_reader import PragmaError, SourceSecurityError
+from bash2yaml.commands.precommit import PrecommitHookError
 from bash2yaml.errors.exceptions import (
     Bash2YamlError,
     CompilationNeeded,

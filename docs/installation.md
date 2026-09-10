@@ -1,5 +1,7 @@
 # Installation
 
+Requires **Python 3.11 or newer**.
+
 This is a standalone command, pipx is better:
 
 ```bash

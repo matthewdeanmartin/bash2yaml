@@ -9,7 +9,6 @@ import urllib3
 
 from bash2yaml.commands.precommit import HOOK_CONTENT, hook_hash, hook_path
 from bash2yaml.config import Config, config
-from bash2yaml.plugins import get_pm
 from bash2yaml.utils.pathlib_polyfills import is_relative_to
 from bash2yaml.utils.urllib3_helper import get_http_pool
 from bash2yaml.utils.utils import short_path
@@ -21,20 +20,6 @@ logger = logging.getLogger(__name__)
 LARGE_SCRIPT_THRESHOLD_BYTES = 1000 * 1024
 
 PrecommitStatus = Literal["Installed", "Not Installed", "Foreign Hook", "Error"]
-
-
-def list_active_plugins() -> list[str]:
-    """
-    Lists the names of all registered pluggy plugins, excluding the built-in default.
-    """
-    pm = get_pm()
-    plugins = []
-    for plugin in pm.get_plugins():
-        name = getattr(plugin, "__name__", str(plugin))
-        # Exclude the built-in default plugin from the user-facing list
-        if name != "bash2yaml.builtin_plugins.Defaults":
-            plugins.append(name)
-    return plugins
 
 
 def check_directory_overlap(input_dir: Path, output_dir: Path) -> list[str]:

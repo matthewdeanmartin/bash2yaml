@@ -16,11 +16,16 @@ from pathlib import Path
 from typing import Any
 
 import jsonschema
+
 try:
     import orjson as json  # faster JSON when available
-    _json_dumps_str = lambda obj: json.dumps(obj).decode()  # orjson returns bytes
+
+    def _json_dumps_str(obj):
+        return json.dumps(obj).decode()  # orjson returns bytes
+
 except ImportError:
     import json  # type: ignore[no-redef]  # stdlib fallback (Python 3.15 before orjson wheels)
+
     _json_dumps_str = json.dumps  # stdlib already returns str
 import ruamel.yaml
 

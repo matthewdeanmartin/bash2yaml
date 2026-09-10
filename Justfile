@@ -28,30 +28,26 @@ clean-test:
 # Clean all
 clean: clean-pyc clean-test
 
-# Install plugins
-install-plugins:
-    @echo "N/A"
-
 # Run unit tests
-test: clean uv-lock install-plugins
+test: clean uv-lock
     @echo "Running unit tests"
     {{venv}} pytest test -vv -n 2 --cov=bash2yaml --cov-report=html --cov-fail-under 48 --cov-branch --cov-report=xml --junitxml=junit.xml -o junit_family=legacy --timeout=5 --session-timeout=600
     bash ./scripts/basic_checks.sh
 
 # Run tests with summary output
-test-summary: clean uv-lock install-plugins
+test-summary: clean uv-lock
     @echo "Running tests with summary output"
     {{venv}} pytest test -q --tb=short --no-header --cov=bash2yaml --cov-fail-under 48 --cov-branch --timeout=5 --session-timeout=600
     bash ./scripts/basic_checks.sh
 
 # Run tests (LLM-optimized output)
-test-llm: clean uv-lock install-plugins
+test-llm: clean uv-lock
     @echo "Running tests (LLM-optimized output)"
     NO_COLOR=1 {{venv}} pytest test -q --tb=line --no-header --color=no --cov=bash2yaml --cov-fail-under 48 --cov-branch --cov-report=term-missing:skip-covered --timeout=5 --session-timeout=600 2>&1 | head -100
     bash ./scripts/basic_checks.sh
 
 # Run tests (CI mode)
-test-ci: clean uv-lock install-plugins
+test-ci: clean uv-lock
     @echo "Running tests (CI mode)"
     {{venv}} pytest test -v -n auto --tb=short --cov=bash2yaml --cov-report=html --cov-fail-under 48 --cov-branch --cov-report=xml --junitxml=junit.xml -o junit_family=legacy --timeout=5 --session-timeout=600
     bash ./scripts/basic_checks.sh
@@ -59,7 +55,7 @@ test-ci: clean uv-lock install-plugins
 # Format imports
 isort:
     @echo "Formatting imports"
-    {{venv}} isort .
+    {{venv}} isort bash2yaml test scripts just_import.py
 
 # Version jiggling
 jiggle-version:

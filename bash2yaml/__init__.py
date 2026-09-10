@@ -24,9 +24,8 @@ __all__ = [
     "run_commit_map",
     # show config
     "run_show_config",
-    # plugin support
+    # configuration
     "config",
-    "get_pm",
     # initialization
     "generate_config",
     "run_init",
@@ -50,7 +49,6 @@ from bash2yaml.commands.decompile_all import run_decompile_gitlab_file, run_deco
 from bash2yaml.commands.detect_drift import run_detect_drift
 from bash2yaml.commands.lint_all import lint_output_folder, summarize_results
 from bash2yaml.commands.show_config import run_show_config
-from bash2yaml.plugins import get_pm
 from bash2yaml.utils.logging_config import generate_config
 
 try:

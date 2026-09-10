@@ -4,7 +4,6 @@ Provides:
 - :func:`get_target` — look up a target by name
 - :func:`detect_target` — auto-detect target from filename / directory
 - :func:`list_targets` — list all registered target names
-- :func:`register_target` — register a third-party target adapter
 """
 
 from __future__ import annotations
@@ -37,15 +36,6 @@ def _ensure_builtins() -> None:
     for cls in (GitLabTarget, GitHubTarget, CircleCITarget, BuildspecTarget, BitbucketTarget, SemaphoreTarget):
         _instance = cls()
         _registry[_instance.name] = _instance
-
-
-def register_target(target: BaseTarget) -> None:
-    """Register a target adapter (built-in or third-party plugin).
-
-    If a target with the same ``name`` already exists it is replaced.
-    """
-    _registry[target.name] = target
-    logger.debug("Registered target: %s (%s)", target.name, target.display_name)
 
 
 def get_target(name: str) -> BaseTarget:

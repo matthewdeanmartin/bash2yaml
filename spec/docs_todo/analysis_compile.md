@@ -1,5 +1,8 @@
 # Bash2Yaml Analysis and Design Document
 
+> Historical document: plugin support described here has been removed. New targets must be built into bash2yaml.
+
+
 ## Executive Summary
 
 Bash2Yaml is a Python tool designed to solve a critical limitation in GitLab CI/CD pipelines: the

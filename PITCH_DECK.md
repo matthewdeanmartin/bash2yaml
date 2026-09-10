@@ -1,5 +1,8 @@
 # bash2yaml
 
+> Historical document: plugin support described here has been removed. New targets must be built into bash2yaml.
+
+
 ## Write scripts. Compile to CI. Any platform.
 
 ---

@@ -3,7 +3,7 @@
 This guide walks through everything you need to do to add support for a new CI/CD platform to bash2yaml. Follow these
 tasks in order — each one builds on the previous.
 
----
+______________________________________________________________________
 
 ## Prerequisites
 
@@ -13,27 +13,27 @@ Before you start, make sure you understand:
 - The `BaseTarget` interface in `bash2yaml/targets/base.py`
 - How the existing `GitLabTarget` or `GitHubTarget` implementations work (read them as reference)
 
----
+______________________________________________________________________
 
 ## Task 1: Research Your Platform
 
 Before writing any code, answer these questions about your target platform:
 
-| Question                                      | Example (GitHub Actions)                |
+| Question | Example (GitHub Actions) |
 |:----------------------------------------------|:----------------------------------------|
-| What is the config filename / path?            | `.github/workflows/*.yml`               |
-| Where do jobs live in the YAML structure?      | Under `jobs:` key                       |
-| What keys hold script content?                 | `run:` in `steps[]`                     |
-| Is script content an array or a string?        | Multiline string                        |
-| Where do variables live?                       | `env:` at workflow/job/step levels      |
-| Are there reusable components to skip?         | `uses:` steps                           |
-| Is there a JSON schema available?              | SchemaStore `github-workflow.json`      |
-| Is there a lint API or CLI tool?               | No (schema only)                        |
+| What is the config filename / path? | `.github/workflows/*.yml` |
+| Where do jobs live in the YAML structure? | Under `jobs:` key |
+| What keys hold script content? | `run:` in `steps[]` |
+| Is script content an array or a string? | Multiline string |
+| Where do variables live? | `env:` at workflow/job/step levels |
+| Are there reusable components to skip? | `uses:` steps |
+| Is there a JSON schema available? | SchemaStore `github-workflow.json` |
+| Is there a lint API or CLI tool? | No (schema only) |
 | What are the reserved (non-job) top-level keys?| `name`, `on`, `env`, `permissions`, ... |
 
 Document your answers — they'll guide every implementation decision.
 
----
+______________________________________________________________________
 
 ## Task 2: Create the Target Class
 
@@ -110,7 +110,7 @@ def matches_directory(self, path: Path) -> bool:
 - Use `ScriptSection.parent` to give callers a way to write back processed results.
 - For platforms with steps (like GitHub), your `script_key_paths()` needs to iterate into steps within each job.
 
----
+______________________________________________________________________
 
 ## Task 3: Create the Validator
 
@@ -131,7 +131,7 @@ Schema fetching follows the pattern: **cache → URL → bundled fallback**.
 - URL: from your target's `schema_url()`
 - Fallback: a minimal schema bundled at `bash2yaml/schemas/<platform>_schema.json`
 
----
+______________________________________________________________________
 
 ## Task 4: Create a Fallback Schema
 
@@ -141,7 +141,7 @@ wrong types).
 
 Look at `bash2yaml/schemas/github_workflow_schema.json` for a good example of a minimal fallback.
 
----
+______________________________________________________________________
 
 ## Task 5: Register the Target
 
@@ -162,7 +162,7 @@ def _ensure_builtins() -> None:
 
 After this step, `--target myplatform` will work in the CLI.
 
----
+______________________________________________________________________
 
 ## Task 6: Handle Compile/Decompile Differences
 
@@ -185,7 +185,7 @@ top-level keys.
 Override `variables_key_name()` to return the correct key (e.g. `"env"`, `"environment"`, `"env_vars"`). The compiler
 and decompiler use this to find and merge variables.
 
----
+______________________________________________________________________
 
 ## Task 7: Write Tests
 
@@ -242,37 +242,16 @@ Add decompile tests in `test/test_commands_no_scenario/test_<platform>_decompile
 - Non-script sections are preserved
 - Output YAML references `.sh` files
 
----
+______________________________________________________________________
 
 ## Task 8: Update Documentation
 
 1. Add your platform to `docs/targets/supported_targets.md` — add a row to the table and a new section with
    structure examples and key behaviors.
-2. Update `docs/overview/README.md` and `docs/usage/usage.md` if they reference GitLab-specific concepts that now
+1. Update `docs/overview/README.md` and `docs/usage/usage.md` if they reference GitLab-specific concepts that now
    apply to your platform too.
 
----
-
-## Task 9: Alternative — Register as a Plugin
-
-If you're building a target outside of the bash2yaml repository, you can register it as a pluggy plugin instead of
-modifying `__init__.py`. Create a package that implements the `register_targets` hookspec:
-
-```python
-# In your package's plugin module
-import bash2yaml.hookspecs
-
-class MyPlugin:
-    @bash2yaml.hookspecs.hookimpl
-    def register_targets(self, registry):
-        from my_package.target import MyPlatformTarget
-        registry.register(MyPlatformTarget())
-```
-
-Register the plugin via a `setuptools` entry point or by calling `pluggy` directly. The target will then be available
-via `--target myplatform` without any changes to bash2yaml itself.
-
----
+______________________________________________________________________
 
 ## Checklist
 

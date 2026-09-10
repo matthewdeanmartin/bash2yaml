@@ -1,5 +1,4 @@
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 from ruamel.yaml.constructor import TaggedScalar
@@ -99,14 +98,10 @@ def test_multiline_string_not_a_reference_is_kept_as_is(scripts_root):
     assert result == script_list
 
 
-@patch("bash2yaml.plugins.get_pm")
-def test_plugin_hook_inlining(mock_get_pm, scripts_root):
-    """Test that the pm.hook.inline_command is called and its result is used."""
-    # Setup mock plugin manager and hook
-    mock_pm = MagicMock()
-    mock_pm.hook.inline_command.return_value = ["# Inlined by plugin", "print('hello from plugin')"]
-    mock_get_pm.return_value = mock_pm
-
-    script_list = ["python -m my_module"]
-    process_script_list(script_list, scripts_root)
-    # well it didn't blow up.
+def test_builtin_python_inlining(scripts_root):
+    (scripts_root / "hello.py").write_text("print('hello')\n", encoding="utf-8")
+    result = process_script_list(["python hello.py"], scripts_root)
+    text = result if isinstance(result, str) else "\n".join(result)
+    assert "python -c" in text
+    assert "hello" in text
+    assert "python hello.py" not in text.splitlines()

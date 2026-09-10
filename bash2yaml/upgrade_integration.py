@@ -3,23 +3,18 @@
 from __future__ import annotations
 
 import argparse
-import sys
 from typing import Any
 
 HAS_UPGRADE_SUPPORT = False
 
-if sys.version_info >= (3, 9):  # noqa: UP036 - py38 intentionally skips importing this optional dependency
-    try:
-        from do_i_need_to_upgrade import add_check_command, add_upgrade_command, run_if_upgrade_command
-        from do_i_need_to_upgrade.api import check_for_updates
-        from do_i_need_to_upgrade.report import Report
-        from do_i_need_to_upgrade.settings import Settings
+try:
+    from do_i_need_to_upgrade import add_check_command, add_upgrade_command, run_if_upgrade_command
+    from do_i_need_to_upgrade.api import check_for_updates
+    from do_i_need_to_upgrade.report import Report
+    from do_i_need_to_upgrade.settings import Settings
 
-        HAS_UPGRADE_SUPPORT = True
-    except ImportError:
-        Report = Any  # type: ignore[assignment,misc]
-        Settings = Any  # type: ignore[assignment,misc]
-else:
+    HAS_UPGRADE_SUPPORT = True
+except ImportError:
     Report = Any  # type: ignore[assignment,misc]
     Settings = Any  # type: ignore[assignment,misc]
 

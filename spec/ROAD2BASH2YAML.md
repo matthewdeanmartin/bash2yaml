@@ -1,5 +1,8 @@
 # Road to bash2yaml
 
+> Historical document: plugin support described here has been removed. New targets must be built into bash2yaml.
+
+
 ## Overview
 
 This document describes the plan to evolve `bash2yaml` into `bash2yaml` — a multi-platform CI/CD script compilation

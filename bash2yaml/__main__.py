@@ -67,7 +67,7 @@ from gitlab.exceptions import GitlabAuthenticationError, GitlabHttpError
 # Core
 from bash2yaml import __about__
 from bash2yaml import __doc__ as root_doc
-from bash2yaml.commands.autogit import run_autogit
+from bash2yaml.commands.autogit import autogit_after_command, run_autogit
 from bash2yaml.commands.clean_all import clean_targets
 from bash2yaml.commands.compile_all import CompileOptions, inline_gitlab_scripts, run_compile_all
 from bash2yaml.commands.decompile_all import (
@@ -97,7 +97,6 @@ from bash2yaml.config import config
 from bash2yaml.errors.exceptions import Bash2YamlError, CompilationNeeded, NetworkIssue, NotFound
 from bash2yaml.errors.exit_codes import ExitCode, resolve_exit_code
 from bash2yaml.install_help import print_install_help
-from bash2yaml.plugins import get_pm
 from bash2yaml.targets import list_targets, resolve_target
 from bash2yaml.upgrade_integration import add_commands as add_upgrade_commands
 from bash2yaml.upgrade_integration import exit_report as upgrade_exit_report
@@ -1386,7 +1385,6 @@ def main() -> int:
     tl_shred.set_defaults(func=traceless_handler)
 
     add_upgrade_commands(subparsers)
-    get_pm().hook.register_cli(subparsers=subparsers, config=config)
 
     if argcomplete:
         argcomplete.autocomplete(parser)
@@ -1519,13 +1517,10 @@ def main() -> int:
 
 def run_cli(args: argparse.Namespace) -> int:
     try:
-        for _ in get_pm().hook.before_command(args=args):
-            pass
         # Execute the appropriate handler
 
         rc = args.func(args)
-        for _ in get_pm().hook.after_command(result=rc, args=args):
-            pass
+        autogit_after_command(result=rc, args=args)
 
         # Handlers return distinct non-zero codes for "command ran, found problems"
         # (e.g. lint failures, drift detected). Propagate them to the shell.
