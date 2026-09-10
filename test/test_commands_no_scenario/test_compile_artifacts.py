@@ -2,12 +2,16 @@
 
 from pathlib import Path
 
+import pytest
+
 from bash2yaml.commands.compile_artifacts import (
+    ArtifactInlineError,
     create_zip_artifact,
     encode_artifact,
     format_size,
     maybe_inline_artifact,
 )
+from bash2yaml.utils.source_paths import SourceSecurityError
 
 
 def write_file(tmp_path: Path, name: str, content: str) -> Path:
@@ -44,9 +48,8 @@ def test_pragma_with_format_option(tmp_path: Path):
     """Test pragma with --format option."""
     write_file(tmp_path, "config.txt", "test content")
     line = "- # Pragma: inline-artifact config.txt --format=tar.gz"
-    result, _found_path = maybe_inline_artifact(line, tmp_path)
-    assert result is not None
-    assert "(tar.gz," in result[0]
+    with pytest.raises(ArtifactInlineError, match="Only zip"):
+        maybe_inline_artifact(line, tmp_path)
 
 
 def test_pragma_without_dash_prefix(tmp_path: Path):
@@ -81,11 +84,10 @@ def test_single_file_artifact(tmp_path: Path):
     assert "single.conf" in result[0]
 
 
-def test_missing_source_returns_none(tmp_path: Path):
-    """Test that missing source path returns None."""
-    line = "- # Pragma: inline-artifact missing.txt"
-    result, _found_path = maybe_inline_artifact(line, tmp_path)
-    assert result is None
+def test_missing_source_raises(tmp_path: Path):
+    """Test that missing source path raises."""
+    with pytest.raises(ArtifactInlineError, match="does not exist"):
+        maybe_inline_artifact("- # Pragma: inline-artifact missing.txt", tmp_path)
 
 
 def test_non_pragma_line_returns_none(tmp_path: Path):
@@ -95,8 +97,8 @@ def test_non_pragma_line_returns_none(tmp_path: Path):
     assert result is None
 
 
-def test_artifact_too_large_returns_none(tmp_path: Path, monkeypatch):
-    """Test that oversized artifacts return None."""
+def test_artifact_too_large_raises(tmp_path: Path, monkeypatch):
+    """Test that oversized artifacts raise."""
     # Create a large file - use random data since repeated chars compress well
     import random
     import string
@@ -107,9 +109,8 @@ def test_artifact_too_large_returns_none(tmp_path: Path, monkeypatch):
     # Set a very small max size to ensure failure
     monkeypatch.setenv("BASH2YAML_MAX_ARTIFACT_SIZE", "100")
 
-    line = "- # Pragma: inline-artifact large.txt"
-    result, _found_path = maybe_inline_artifact(line, tmp_path)
-    assert result is None
+    with pytest.raises(ArtifactInlineError, match="too large"):
+        maybe_inline_artifact("- # Pragma: inline-artifact large.txt", tmp_path)
 
 
 def test_create_zip_artifact_file(tmp_path: Path):
@@ -156,9 +157,8 @@ def test_security_path_traversal_blocked(tmp_path: Path):
     """Test that path traversal attempts are blocked."""
     # Try to reference a file outside the input_dir
     line = "- # Pragma: inline-artifact ../outside.txt"
-    result, _found_path = maybe_inline_artifact(line, tmp_path)
-    # Should return None due to security check
-    assert result is None
+    with pytest.raises(SourceSecurityError):
+        maybe_inline_artifact(line, tmp_path)
 
 
 def test_nested_directory_structure(tmp_path: Path):

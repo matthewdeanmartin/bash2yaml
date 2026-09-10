@@ -6,7 +6,10 @@ import base64
 import io
 import logging
 import multiprocessing
-from dataclasses import dataclass
+import os
+from contextlib import nullcontext
+from copy import deepcopy
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -23,13 +26,16 @@ from bash2yaml.commands.hash_path_helpers import find_hash_file, get_output_hash
 from bash2yaml.commands.input_change_detector import mark_compilation_complete, needs_compilation
 from bash2yaml.config import config
 from bash2yaml.errors.exceptions import Bash2YamlError, CompileError, ValidationFailed
+from bash2yaml.targets import get_target
 from bash2yaml.targets.base import BaseTarget
 from bash2yaml.utils import diff_helpers
+from bash2yaml.utils.atomic_io import atomic_write_text, file_lock
 from bash2yaml.utils.attribution import quiet_attribution_enabled
 from bash2yaml.utils.dotenv import parse_env_file
 from bash2yaml.utils.gitlab_components import split_component_template
 from bash2yaml.utils.parse_bash import extract_script_path
-from bash2yaml.utils.state_store import StateStore, find_repo_root
+from bash2yaml.utils.source_paths import resolve_source, source_root
+from bash2yaml.utils.state_store import StateStore, default_state_root, find_repo_root, sha256_text
 from bash2yaml.utils.utils import remove_leading_blank_lines, short_path
 from bash2yaml.utils.validate_pipeline import GitLabCIValidator
 from bash2yaml.utils.yaml_factory import get_yaml
@@ -57,6 +63,7 @@ class CompileOptions:
     in_place: bool = False  # --in-place: output dir is a live tree, skip stray-file halt
     force: bool = False  # overwrite even when integrity records are missing/mismatched
     state_dir: str | None = None  # --state-dir / BASH2YAML_STATE_DIR
+    allowed_root: str | None = None
 
     @classmethod
     def traceless(cls, state_dir: str | None = None, force: bool = False) -> CompileOptions:
@@ -199,6 +206,7 @@ def process_script_list(
     scripts_root: Path,
     collapse_lists: bool = True,
     emit_fences: bool = True,
+    allowed_root: Path | None = None,
 ) -> list[Any] | CommentedSeq | LiteralScalarString:
     """Process a script list, inlining shell files while preserving YAML features.
 
@@ -214,12 +222,14 @@ def process_script_list(
         scripts_root (Path): Root directory used to resolve script paths for inlining.
         collapse_lists (bool): Turn lists into string block. Safe if it is indeed a script.
         emit_fences (bool): Wrap inlined scripts in BEGIN/END marker comments (off in traceless mode).
+        allowed_root: Directory that all resolved input paths must remain within.
 
     Returns:
         list[Any] | CommentedSeq | LiteralScalarString: Processed script block. Returns a
         ``LiteralScalarString`` when safe to collapse; otherwise returns a list or
         ``CommentedSeq`` (matching the input style) to preserve YAML features.
     """
+    allowed_root = allowed_root or source_root(scripts_root)
     items, was_commented_seq, original_seq = as_items(script_list)
 
     processed_items: list[Any] = []
@@ -249,14 +259,6 @@ def process_script_list(
             else:
                 rel_path = script_path_str.strip()
             script_path = scripts_root / rel_path
-            # Scripts may not source files that escape the project. When the
-            # scripts root lives outside the cwd (traceless state dir), that
-            # root is the security boundary instead.
-            allowed_root = Path.cwd()
-            try:
-                scripts_root.resolve().relative_to(allowed_root.resolve())
-            except ValueError:
-                allowed_root = scripts_root.resolve()
             try:
                 bash_code = read_bash_script(script_path, allowed_root=allowed_root)
             except (FileNotFoundError, ValueError) as e:
@@ -291,12 +293,14 @@ def process_script_list(
 
         else:
             # Check for artifact inlining pragma
-            artifact_inline, artifact_path = maybe_inline_artifact(item, scripts_root)
+            artifact_inline, artifact_path = maybe_inline_artifact(item, scripts_root, allowed_root=allowed_root)
             if artifact_inline and artifact_path:
                 scripts_found.append(str(artifact_path))
                 processed_items.extend(artifact_inline)
             else:
-                interp_inline, script_path_str_other = maybe_inline_interpreter_command(item, scripts_root)
+                interp_inline, script_path_str_other = maybe_inline_interpreter_command(
+                    item, scripts_root, allowed_root=allowed_root
+                )
                 if interp_inline and script_path_str_other:
                     scripts_found.append(str(script_path_str_other))
                     processed_items.extend(interp_inline)
@@ -327,7 +331,13 @@ def process_script_list(
     return rebuild_seq_like(compact_items, was_commented_seq, original_seq)
 
 
-def process_job(job_data: dict, scripts_root: Path, target: BaseTarget | None = None, emit_fences: bool = True) -> int:
+def process_job(
+    job_data: dict,
+    scripts_root: Path,
+    target: BaseTarget | None = None,
+    emit_fences: bool = True,
+    allowed_root: Path | None = None,
+) -> int:
     """Processes a single job definition to inline scripts."""
     if target is not None:
         script_keys = target.script_keys()
@@ -336,7 +346,9 @@ def process_job(job_data: dict, scripts_root: Path, target: BaseTarget | None = 
     found = 0
     for script_key in script_keys:
         if script_key in job_data:
-            result = process_script_list(job_data[script_key], scripts_root, emit_fences=emit_fences)
+            result = process_script_list(
+                job_data[script_key], scripts_root, emit_fences=emit_fences, allowed_root=allowed_root
+            )
             if result != job_data[script_key]:
                 job_data[script_key] = result
                 found += 1
@@ -373,6 +385,7 @@ def inline_gitlab_scripts(
     input_dir: Path,  # Path to look for job_name_variables.sh files
     target: BaseTarget | None = None,
     emit_fences: bool = True,
+    allowed_root: Path | None = None,
 ) -> tuple[int, str]:
     """
     Loads a CI YAML file, inlines scripts, merges global and job-specific variables,
@@ -381,6 +394,7 @@ def inline_gitlab_scripts(
     When *target* is provided the adapter drives structure discovery; otherwise
     the legacy GitLab-specific hard-coded logic is used (kept for backward compat).
     """
+    allowed_root = allowed_root or source_root(scripts_root)
     inlined_count = 0
     yaml = get_yaml()
 
@@ -419,7 +433,9 @@ def inline_gitlab_scripts(
         for section in sections:
             is_top_level_list = isinstance(section.lines, list) and section.parent is data
             collapse = not is_top_level_list
-            result = process_script_list(section.lines, scripts_root, collapse_lists=collapse, emit_fences=emit_fences)
+            result = process_script_list(
+                section.lines, scripts_root, collapse_lists=collapse, emit_fences=emit_fences, allowed_root=allowed_root
+            )
             if result != section.lines:
                 section.parent[section.script_key] = result
                 inlined_count += 1
@@ -432,7 +448,7 @@ def inline_gitlab_scripts(
 
             if job_vars_path.is_file():
                 logger.debug(f"Found and loading job-specific variables for '{job_name}' from {job_vars_path}")
-                content = job_vars_path.read_text(encoding="utf-8")
+                content = resolve_source(input_dir, job_vars_filename, allowed_root).read_text(encoding="utf-8")
                 job_specific_vars = parse_env_file(content)
 
                 if job_specific_vars:
@@ -446,7 +462,9 @@ def inline_gitlab_scripts(
         for name in ["after_script", "before_script"]:
             if name in data:
                 logger.warning(f"Processing top-level '{name}' section, even though gitlab has deprecated them.")
-                result = process_script_list(data[name], scripts_root, emit_fences=emit_fences)
+                result = process_script_list(
+                    data[name], scripts_root, emit_fences=emit_fences, allowed_root=allowed_root
+                )
                 if result != data[name]:
                     data[name] = result
 
@@ -472,7 +490,9 @@ def inline_gitlab_scripts(
 
             if isinstance(job_data, list):
                 logger.debug(f"Processing top-level list key '{job_name}', potentially a script anchor.")
-                result = process_script_list(job_data, scripts_root, collapse_lists=False, emit_fences=emit_fences)
+                result = process_script_list(
+                    job_data, scripts_root, collapse_lists=False, emit_fences=emit_fences, allowed_root=allowed_root
+                )
                 if result != job_data:
                     data[job_name] = result
                     inlined_count += 1
@@ -483,7 +503,7 @@ def inline_gitlab_scripts(
 
                 if job_vars_path.is_file():
                     logger.debug(f"Found and loading job-specific variables for '{job_name}' from {job_vars_path}")
-                    content = job_vars_path.read_text(encoding="utf-8")
+                    content = resolve_source(input_dir, job_vars_filename, allowed_root).read_text(encoding="utf-8")
                     job_specific_vars = parse_env_file(content)
 
                     if job_specific_vars:
@@ -500,17 +520,23 @@ def inline_gitlab_scripts(
                     or "pre_get_sources_script" in job_data
                 ):
                     logger.debug(f"Processing job: {job_name}")
-                    inlined_count += process_job(job_data, scripts_root, emit_fences=emit_fences)
+                    inlined_count += process_job(
+                        job_data, scripts_root, emit_fences=emit_fences, allowed_root=allowed_root
+                    )
                 if "hooks" in job_data:
                     if isinstance(job_data["hooks"], dict) and "pre_get_sources_script" in job_data["hooks"]:
                         logger.debug(f"Processing pre_get_sources_script: {job_name}")
-                        inlined_count += process_job(job_data["hooks"], scripts_root, emit_fences=emit_fences)
+                        inlined_count += process_job(
+                            job_data["hooks"], scripts_root, emit_fences=emit_fences, allowed_root=allowed_root
+                        )
                 if "run" in job_data:
                     if isinstance(job_data["run"], list):
                         for item in job_data["run"]:
                             if isinstance(item, dict) and "script" in item:
                                 logger.debug(f"Processing run/script: {job_name}")
-                                inlined_count += process_job(item, scripts_root, emit_fences=emit_fences)
+                                inlined_count += process_job(
+                                    item, scripts_root, emit_fences=emit_fences, allowed_root=allowed_root
+                                )
 
     out_stream = io.StringIO()
     yaml.dump(data, out_stream)
@@ -518,6 +544,16 @@ def inline_gitlab_scripts(
     if component is not None:
         return inlined_count, component.reassemble(out_stream.getvalue())
     return inlined_count, out_stream.getvalue()
+
+
+def _validate_output(new_content: str, target: BaseTarget | None) -> None:
+    if target is not None:
+        ok, problems = target.validate(new_content)
+    else:
+        validator = GitLabCIValidator()
+        ok, problems = validator.validate_ci_config(new_content)
+    if not ok:
+        raise ValidationFailed(problems)
 
 
 def write_yaml_and_hash(
@@ -535,19 +571,13 @@ def write_yaml_and_hash(
 
     new_content = remove_leading_blank_lines(new_content)
 
-    if target is not None:
-        ok, problems = target.validate(new_content)
-    else:
-        validator = GitLabCIValidator()
-        ok, problems = validator.validate_ci_config(new_content)
-    if not ok:
-        raise ValidationFailed(problems)
-    output_file.write_text(new_content, encoding="utf-8")
+    _validate_output(new_content, target)
+    atomic_write_text(output_file, new_content)
 
     # Store a base64 encoded copy in centralized location
     hash_file.parent.mkdir(parents=True, exist_ok=True)
     encoded_content = base64.b64encode(new_content.encode("utf-8")).decode("utf-8")
-    hash_file.write_text(encoded_content, encoding="utf-8")
+    atomic_write_text(hash_file, encoded_content)
     logger.debug(f"Updated hash file: {short_path(hash_file)}")
 
 
@@ -571,9 +601,24 @@ def write_compiled_file_no_sidecar(
     target: BaseTarget | None,
     options: CompileOptions,
 ) -> bool:
+    """Serialize output publication and its integrity record."""
+    resolve_source(output_base, output_file.resolve(), output_base)
+    lock_root = default_state_root()
+    lock_path = lock_root / "locks" / (sha256_text(os.path.normcase(str(output_file.resolve()))) + ".lock")
+    with file_lock(lock_path):
+        return _write_compiled_file_no_sidecar(output_file, new_content, output_base, target, options)
+
+
+def _write_compiled_file_no_sidecar(
+    output_file: Path,
+    new_content: str,
+    output_base: Path,
+    target: BaseTarget | None,
+    options: CompileOptions,
+) -> bool:
     """Write a compiled file without a ``.hash`` sidecar.
 
-    Manual-edit protection comes from the state-dir ``hashes.json`` when a
+    Manual-edit protection comes from the state-dir ``state.json`` when a
     state dir is configured; without one, the file is overwritten with a
     warning (``--no-hash`` alone trades integrity tracking for zero footprint).
 
@@ -586,6 +631,11 @@ def write_compiled_file_no_sidecar(
     if output_file.exists():
         current_content = output_file.read_text(encoding="utf-8")
         if current_content == new_content:
+            if store is not None and store.content_matches(relpath, new_content) is not True:
+                # A prior run may have published output before its state update failed.
+                _validate_output(new_content, target)
+                store.record_hash(relpath, new_content)
+                store.save_hashes()
             logger.debug("Content of %s is already up to date. Skipping.", short_path(output_file))
             return False
 
@@ -618,26 +668,37 @@ def write_compiled_file_no_sidecar(
                 short_path(output_file),
             )
 
-    if target is not None:
-        ok, problems = target.validate(new_content)
-    else:
-        validator = GitLabCIValidator()
-        ok, problems = validator.validate_ci_config(new_content)
-    if not ok:
-        raise ValidationFailed(problems)
+    _validate_output(new_content, target)
 
     logger.info("Writing new file: %s", short_path(output_file))
     output_file.parent.mkdir(parents=True, exist_ok=True)
-    output_file.write_text(new_content, encoding="utf-8")
+    atomic_write_text(output_file, new_content)
 
     if store is not None:
         store.record_hash(relpath, new_content)
         store.save_hashes()
-        logger.debug("Recorded content hash for %s in %s", relpath, store.hashes_path)
+        logger.debug("Recorded content hash for %s in %s", relpath, store.state_path)
     return True
 
 
 def write_compiled_file(
+    output_file: Path,
+    new_content: str,
+    output_base: Path,
+    dry_run: bool = False,
+    target: BaseTarget | None = None,
+    options: CompileOptions | None = None,
+) -> bool:
+    """Serialize integrity checks and publication for a compiled output."""
+    resolve_source(output_base, output_file.resolve(), output_base)
+    if options is not None and not options.write_hashes and not dry_run:
+        return write_compiled_file_no_sidecar(output_file, new_content, output_base, target, options)
+    lock = default_state_root() / "locks" / (sha256_text(os.path.normcase(str(output_file.resolve()))) + ".lock")
+    with nullcontext() if dry_run else file_lock(lock):
+        return _write_compiled_file(output_file, new_content, output_base, dry_run, target, options)
+
+
+def _write_compiled_file(
     output_file: Path,
     new_content: str,
     output_base: Path,
@@ -681,12 +742,20 @@ def write_compiled_file(
     migrate_hash_file(output_file, output_base)
 
     # Use new centralized hash location
-    hash_file = get_output_hash_path(output_file, output_base)
+    hash_file = resolve_source(output_base, get_output_hash_path(output_file, output_base).resolve(), output_base)
 
     if not output_file.exists():
         logger.info(f"Output file {short_path(output_file)} does not exist. Creating.")
         write_yaml_and_hash(output_file, new_content, hash_file, target=target)
         return True
+
+    if output_file.read_text(encoding="utf-8") == remove_leading_blank_lines(new_content):
+        # Safely repair an interrupted output/hash publication without discarding edits.
+        expected = base64.b64encode(remove_leading_blank_lines(new_content).encode("utf-8")).decode("utf-8")
+        if not hash_file.exists() or hash_file.read_text(encoding="utf-8") != expected:
+            _validate_output(new_content, target)
+            atomic_write_text(hash_file, expected)
+        return False
 
     # --- File exists, find its hash file (old or new location) ---
     existing_hash = find_hash_file(output_file, output_base)
@@ -781,7 +850,7 @@ def compile_single_file(
     dry_run: bool,
     inferred_cli_command: str,
     output_base: Path,
-    target: BaseTarget | None = None,
+    target: BaseTarget | str | None = None,
     options: CompileOptions | None = None,
 ) -> tuple[int, int]:
     """Compile a single YAML file and write the result.
@@ -789,10 +858,13 @@ def compile_single_file(
     Returns a tuple of the number of inlined sections and whether a file was written (0 or 1).
     """
     opts = options or DEFAULT_COMPILE_OPTIONS
+    if isinstance(target, str):
+        target = get_target(target)
     logger.debug(f"Processing template: {short_path(source_path)}")
-    raw_text = source_path.read_text(encoding="utf-8")
+    root = Path(opts.allowed_root) if opts.allowed_root else source_root(scripts_path)
+    raw_text = resolve_source(input_dir, source_path.resolve(), root).read_text(encoding="utf-8")
     inlined_for_file, compiled_text = inline_gitlab_scripts(
-        raw_text, scripts_path, variables, input_dir, target=target, emit_fences=opts.emit_fences
+        raw_text, scripts_path, variables, input_dir, target=target, emit_fences=opts.emit_fences, allowed_root=root
     )
     if inlined_for_file > 0:
         final_content = (get_banner(inferred_cli_command) + compiled_text) if opts.emit_header else compiled_text
@@ -802,7 +874,31 @@ def compile_single_file(
     return inlined_for_file, int(written)
 
 
+def _initialize_compile_worker(file_config: dict[str, Any], env_config: dict[str, str]) -> None:
+    """Restore the parent's effective configuration under spawn as well as fork."""
+    config.file_config = file_config
+    config.env_config = env_config
+
+
 def run_compile_all(
+    input_dir: Path,
+    output_path: Path,
+    dry_run: bool = False,
+    parallelism: int | None = None,
+    force: bool = False,
+    target: BaseTarget | None = None,
+    options: CompileOptions | None = None,
+    stats: dict[str, Any] | None = None,
+) -> int:
+    """Compile a tree, leaving a retry marker if publication or state recording fails."""
+    if not input_dir.is_dir():
+        raise CompileError(f"Input directory does not exist: {input_dir}")
+    lock = resolve_source(input_dir, input_dir.resolve() / ".bash2yaml" / "compile.lock", input_dir)
+    with nullcontext() if dry_run else file_lock(lock):
+        return _run_compile_all(input_dir, output_path, dry_run, parallelism, force, target, options, stats)
+
+
+def _run_compile_all(
     input_dir: Path,
     output_path: Path,
     dry_run: bool = False,
@@ -830,6 +926,8 @@ def run_compile_all(
         The total number of inlined sections across all files.
     """
     opts = options or DEFAULT_COMPILE_OPTIONS
+    opts = replace(opts, allowed_root=opts.allowed_root or str(source_root(input_dir)))
+    options = opts
     # Check if compilation is needed (unless forced)
     if not force:
         if not needs_compilation(input_dir):
@@ -843,6 +941,9 @@ def run_compile_all(
     inferred_cli_command = infer_cli(input_dir, output_path, dry_run, parallelism)
     if opts.write_hashes and not opts.in_place:
         strays = report_targets(output_path)
+        if (input_dir / ".bash2yaml" / "compilation.pending").exists():
+            # Let the writer compare regenerated content before repairing missing hashes.
+            strays = [path for path in strays if not (input_dir / path.relative_to(output_path)).is_file()]
         if strays:
             print("Stray files in output folder, halting")
             for stray in strays:
@@ -853,13 +954,16 @@ def run_compile_all(
     written_files_count = 0
 
     if not dry_run:
+        atomic_write_text(input_dir / ".bash2yaml" / "compilation.pending", "incomplete\n")
         output_path.mkdir(parents=True, exist_ok=True)
 
     global_vars_path = input_dir / "global_variables.sh"
     global_vars_data = {}
     if global_vars_path.is_file():
         logger.info(f"Found and loading variables from {short_path(global_vars_path)}")
-        content = global_vars_path.read_text(encoding="utf-8")
+        content = resolve_source(
+            input_dir, "global_variables.sh", Path(opts.allowed_root or str(source_root(input_dir)))
+        ).read_text(encoding="utf-8")
         global_vars_data = parse_env_file(content)
         total_inlined_count += 1
 
@@ -881,23 +985,26 @@ def run_compile_all(
         max_workers = min(parallelism, max_workers)
 
     if total_files >= 5 and max_workers > 1 and parallelism:
-        # prime the cache or we get n schema downloads and n attempts to save it to disk
-        if target is not None:
-            target.validate("")  # warm up schema cache
-        else:
-            validator = GitLabCIValidator()
-            validator.get_schema()
-
-        # NOTE: target is not passed in parallel mode because BaseTarget
-        # instances may not be pickle-safe.  The workers fall back to the
-        # legacy GitLab path which is fine for now (only GitLab target exists).
-        # CompileOptions is a frozen dataclass of primitives, so it crosses the
-        # process boundary safely.
         args_list = [
-            (src, out, input_dir, variables, input_dir, dry_run, inferred_cli_command, output_path, None, options)
+            (
+                src,
+                out,
+                input_dir,
+                variables,
+                input_dir,
+                dry_run,
+                inferred_cli_command,
+                output_path,
+                target.name if target is not None else None,
+                options,
+            )
             for src, out, variables in files_to_process
         ]
-        with multiprocessing.Pool(processes=max_workers) as pool:
+        with multiprocessing.get_context("spawn").Pool(
+            processes=max_workers,
+            initializer=_initialize_compile_worker,
+            initargs=(deepcopy(config.file_config), dict(config.env_config)),
+        ) as pool:
             results = pool.starmap(compile_single_file, args_list)
         total_inlined_count += sum(inlined for inlined, _ in results)
         written_files_count += sum(written for _, written in results)
@@ -919,12 +1026,9 @@ def run_compile_all(
             written_files_count += wrote
 
     # After successful compilation, mark as complete
-    if not dry_run and (total_inlined_count > 0 or written_files_count > 0):
-        try:
-            mark_compilation_complete(input_dir)
-            logger.debug("Marked compilation as complete - updated input file hashes")
-        except Exception as e:
-            logger.warning(f"Failed to update input hashes: {e}")
+    if not dry_run:
+        mark_compilation_complete(input_dir)
+        (input_dir / ".bash2yaml" / "compilation.pending").unlink(missing_ok=True)
 
     if written_files_count == 0 and not dry_run:
         logger.warning(

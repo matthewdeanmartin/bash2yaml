@@ -167,12 +167,5 @@ def autogit_after_command(result: int, args: argparse.Namespace) -> None:
         return
 
     logger.info("Command successful, triggering autogit...")
-    try:
-        # The message for --autogit will always come from config.
-        autogit_result = run_autogit(config=config, commit_message=None)
-        if autogit_result != 0:
-            logger.error("Autogit process failed.")
-
-    except Exception as e:
-        logger.error("An unexpected error occurred during autogit: %s", e, exc_info=False)
-        logger.debug("Traceback for autogit failure:", exc_info=True)
+    if run_autogit(config=config, commit_message=None) != 0:
+        raise Bash2YamlError("The command completed, but the requested --autogit action failed.")

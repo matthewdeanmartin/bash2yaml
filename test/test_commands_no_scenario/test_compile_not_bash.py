@@ -1,6 +1,9 @@
 from pathlib import Path
 
+import pytest
+
 from bash2yaml.commands.compile_not_bash import maybe_inline_interpreter_command, shell_single_quote
+from bash2yaml.errors.exceptions import Bash2YamlError
 
 
 def write_script(tmp_path: Path, name: str, content: str) -> Path:
@@ -58,10 +61,9 @@ def test_unmatched_line_returns_none(tmp_path: Path):
     assert result is None
 
 
-def test_missing_file_returns_none(tmp_path: Path):
-    line = "python missing.py"
-    result, _found_path = maybe_inline_interpreter_command(line, tmp_path)
-    assert result is None
+def test_missing_file_raises(tmp_path: Path):
+    with pytest.raises(Bash2YamlError, match="not found"):
+        maybe_inline_interpreter_command("python missing.py", tmp_path)
 
 
 def test_unexpected_extension_returns_none(tmp_path: Path):

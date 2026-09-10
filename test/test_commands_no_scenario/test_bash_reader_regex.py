@@ -23,8 +23,8 @@ TEST_CASES = [
     (". ", None),  # Should not match without a path
     ("echo 'source my_script.sh'", None),  # Should not match if part of another command
     ("export VAR=source", None),  # Should not match variable assignments
-    ("source 'quoted/path.sh'", None),  # The current regex does not support quotes
-    ('source "double/quoted/path.sh"', None),  # The current regex does not support quotes
+    ("source 'quoted/path.sh'", "'quoted/path.sh'"),  # Quoted paths are supported
+    ('source "double/quoted/path.sh"', '"double/quoted/path.sh"'),  # Quoted paths are supported
     ("anothersource my_script.sh", None),  # 'source' must be at the beginning (after whitespace)
     ("source path/with/invalid$char.sh", None),  # '$' is not a valid character in the regex path
 ]

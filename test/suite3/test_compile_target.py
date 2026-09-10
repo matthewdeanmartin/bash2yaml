@@ -468,14 +468,13 @@ class TestWriteYamlAndHashBoundary:
         with pytest.raises((CompileError, Exception)):
             write_compiled_file(out, SIMPLE_YAML, out_base)
 
-    def test_missing_hash_raises(self, tmp_path):
+    def test_missing_hash_is_repaired_when_content_matches(self, tmp_path):
         out_base = tmp_path / "out"
         out_base.mkdir()
         out = out_base / "ci.yml"
         out.write_text(SIMPLE_YAML)
         # No hash file — should refuse to overwrite
-        with pytest.raises((CompileError, Exception)):
-            write_compiled_file(out, SIMPLE_YAML, out_base)
+        assert write_compiled_file(out, SIMPLE_YAML, out_base) is False
 
     def test_dry_run_no_file_created(self, tmp_path):
         out_base = tmp_path / "out"

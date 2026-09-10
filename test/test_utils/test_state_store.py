@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
+from bash2yaml.errors.exceptions import ConfigInvalid
 from bash2yaml.utils.state_store import (
     StateStore,
     default_state_root,
@@ -97,9 +100,10 @@ def test_state_store_shred(tmp_path: Path):
     assert store.shred() is False  # idempotent
 
 
-def test_state_store_corrupt_json_treated_as_empty(tmp_path: Path):
+def test_state_store_corrupt_json_is_reported(tmp_path: Path):
     state = tmp_path / "state"
     state.mkdir()
     (state / StateStore.HASHES_FILE).write_text("{not json", encoding="utf-8")
     store = StateStore(state)
-    assert store.hashes == {}
+    with pytest.raises(ConfigInvalid, match="Cannot read state"):
+        _ = store.hashes

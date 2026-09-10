@@ -22,10 +22,13 @@ import io
 import logging
 import os
 import re
+import shlex
 import zipfile
 from pathlib import Path
 
 from bash2yaml.config import config
+from bash2yaml.errors.exceptions import Bash2YamlError
+from bash2yaml.utils.source_paths import SourceSecurityError, resolve_source, source_root
 
 __all__ = ["maybe_inline_artifact"]
 
@@ -53,8 +56,8 @@ def get_warn_artifact_size() -> int:
 ARTIFACT_PRAGMA_REGEX = re.compile(
     r"""
     ^\s*-?\s*\#\s*Pragma:\s*inline-artifact\s+
-    (?P<source_path>[^\s]+)
-    (?:\s+--output=(?P<output_path>[^\s]+))?
+    (?P<source_path>"[^"]+"|'[^']+'|[^\s]+)
+    (?:\s+--output=(?P<output_path>"[^"]+"|'[^']+'|[^\s]+))?
     (?:\s+--format=(?P<format>zip|tar\.gz|tar\.bz2|tar\.xz))?
     (?:\s+--strip=(?P<strip>\d+))?
     \s*$
@@ -63,15 +66,16 @@ ARTIFACT_PRAGMA_REGEX = re.compile(
 )
 
 
-class ArtifactInlineError(Exception):
+class ArtifactInlineError(Bash2YamlError):
     """Raised when artifact inlining fails."""
 
 
-def create_zip_artifact(source_path: Path) -> bytes:
+def create_zip_artifact(source_path: Path, *, allowed_root: Path | None = None) -> bytes:
     """Create a zip archive from a file or directory.
 
     Args:
         source_path: Path to file or directory to compress
+        allowed_root: Boundary for every archived file, including symlink targets.
 
     Returns:
         Bytes of the zip archive
@@ -79,6 +83,8 @@ def create_zip_artifact(source_path: Path) -> bytes:
     Raises:
         ArtifactInlineError: If compression fails
     """
+    allowed_root = allowed_root or source_root(source_path.parent)
+    source_path = resolve_source(source_path.parent, source_path.resolve(), allowed_root)
     if not source_path.exists():
         raise ArtifactInlineError(f"Source path does not exist: {source_path}")
 
@@ -93,14 +99,17 @@ def create_zip_artifact(source_path: Path) -> bytes:
             elif source_path.is_dir():
                 # Directory: add all files recursively
                 for file_path in source_path.rglob("*"):
-                    if file_path.is_file():
+                    checked_path = resolve_source(source_path, file_path.resolve(), allowed_root)
+                    if checked_path.is_file():
                         # Calculate relative path from source_path
                         arcname = file_path.relative_to(source_path)
-                        zip_file.write(file_path, arcname=str(arcname))
+                        zip_file.write(checked_path, arcname=str(arcname))
                         logger.debug("Added to zip: %s", arcname)
             else:
                 raise ArtifactInlineError(f"Source path is neither file nor directory: {source_path}")
 
+    except SourceSecurityError:
+        raise
     except Exception as e:
         raise ArtifactInlineError(f"Failed to create zip archive: {e}") from e
 
@@ -138,6 +147,7 @@ def generate_extraction_shim(
     Returns:
         List of script lines
     """
+    output_path = shlex.quote(output_path.strip('"').strip("'"))
     # Determine extraction command based on format
     if format_type == "zip":
         extract_cmd = f'echo "$__B2G_ARTIFACT" | base64 -d | unzip -q -d {output_path} -'
@@ -178,12 +188,15 @@ def format_size(size_bytes: int) -> str:
     return f"{size_bytes / (1024 * 1024):.1f}MB"
 
 
-def maybe_inline_artifact(line: str, input_dir: Path) -> tuple[list[str], Path] | tuple[None, None]:
+def maybe_inline_artifact(
+    line: str, input_dir: Path, *, allowed_root: Path | None = None
+) -> tuple[list[str], Path] | tuple[None, None]:
     """Check if line is an artifact pragma and inline it.
 
     Args:
         line: YAML script line to check
         input_dir: Base directory for resolving relative paths
+        allowed_root: Directory that all resolved source paths must remain within.
 
     Returns:
         Tuple of (inlined_lines, source_path) if inlining succeeded,
@@ -197,20 +210,10 @@ def maybe_inline_artifact(line: str, input_dir: Path) -> tuple[list[str], Path] 
     output_path = match.group("output_path")
     format_type = match.group("format") or "zip"
 
-    # Resolve source path relative to input_dir
-    source_path = input_dir / source_path_str
-    source_path = source_path.resolve()
-
-    # Security check: ensure source is within input_dir
-    try:
-        source_path.relative_to(input_dir.resolve())
-    except ValueError:
-        logger.error(
-            "Security: Artifact source path '%s' is outside input directory '%s'",
-            source_path,
-            input_dir,
-        )
-        return None, None
+    root = allowed_root or source_root(input_dir)
+    source_path = resolve_source(input_dir, source_path_str, root)
+    if format_type != "zip":
+        raise ArtifactInlineError("Only zip artifacts are supported; use --format=zip.")
 
     # Default output path is the source directory/file name
     if not output_path:
@@ -218,16 +221,12 @@ def maybe_inline_artifact(line: str, input_dir: Path) -> tuple[list[str], Path] 
 
     # Check if source exists
     if not source_path.exists():
-        logger.warning(
-            "Artifact source path does not exist: %s (pragma will be preserved as-is)",
-            source_path,
-        )
-        return None, None
+        raise ArtifactInlineError(f"Artifact source path does not exist: {source_path}")
 
     try:
         # Create zip archive
         logger.info("Creating artifact from: %s", source_path)
-        artifact_bytes = create_zip_artifact(source_path)
+        artifact_bytes = create_zip_artifact(source_path, allowed_root=root)
 
         # Check size limits
         compressed_size = len(artifact_bytes)
@@ -275,10 +274,7 @@ def maybe_inline_artifact(line: str, input_dir: Path) -> tuple[list[str], Path] 
 
         return inlined_lines, source_path
 
-    except ArtifactInlineError as e:
-        logger.error("Failed to inline artifact %s: %s", source_path, e)
-        # Return None to preserve the original pragma line
-        return None, None
+    except (ArtifactInlineError, SourceSecurityError):
+        raise
     except Exception as e:
-        logger.error("Unexpected error inlining artifact %s: %s", source_path, e)
-        return None, None
+        raise ArtifactInlineError(f"Failed to inline artifact {source_path}: {e}") from e

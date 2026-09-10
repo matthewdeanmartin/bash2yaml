@@ -1,6 +1,6 @@
 # Hardening plan
 
-This review follows the Python 3.11 baseline change and removal of the application plugin system. It describes follow-up work, not fixes included in that change. Prioritize correctness and preservation of user files before additional features.
+This review follows the Python 3.11 baseline change and removal of the application plugin system. Items **1, 3, 4, and 6 are implemented**. Items 2, 5, and 7 are intentionally deferred at the owner's request. The findings and acceptance criteria below retain the rationale for each item. Prioritize correctness and preservation of user files before additional features.
 
 ## 1. Preserve target behavior in parallel compilation (P1)
 

@@ -27,6 +27,7 @@ from bash2yaml.errors.exceptions import Bash2YamlError, NotFound
 from bash2yaml.targets.base import BaseTarget
 from bash2yaml.utils import diff_helpers
 from bash2yaml.utils.dotenv import parse_env_file
+from bash2yaml.utils.source_paths import resolve_source
 from bash2yaml.utils.state_store import StateStore, find_repo_root
 from bash2yaml.utils.utils import remove_leading_blank_lines, short_path
 
@@ -66,7 +67,7 @@ def _compile_state_source(
     info = store.sources.get(rel)
     if not info:
         raise Bash2YamlError(f"'{rel}' is not adopted; run `traceless adopt --in-file {rel}` first.")
-    uncompiled_path = store.state_dir / info["uncompiled"]
+    uncompiled_path = resolve_source(store.state_dir, info["uncompiled"], store.sources_dir)
     if not uncompiled_path.is_file():
         raise Bash2YamlError(f"State-dir source for '{rel}' is missing ({uncompiled_path}). Re-run `traceless adopt`.")
 
@@ -76,10 +77,12 @@ def _compile_state_source(
     global_vars: dict[str, str] = {}
     global_vars_path = input_dir / "global_variables.sh"
     if global_vars_path.is_file():
-        global_vars = parse_env_file(global_vars_path.read_text(encoding="utf-8"))
+        global_vars = parse_env_file(
+            resolve_source(input_dir, "global_variables.sh", store.sources_dir).read_text(encoding="utf-8")
+        )
 
     inlined, compiled_text = inline_gitlab_scripts(
-        raw_text, input_dir, global_vars, input_dir, target=target, emit_fences=False
+        raw_text, input_dir, global_vars, input_dir, target=target, emit_fences=False, allowed_root=store.sources_dir
     )
     content = compiled_text if inlined > 0 else raw_text
     return remove_leading_blank_lines(content)
@@ -185,7 +188,7 @@ def run_traceless_compile(
     for rel in sorted(store.sources):
         target = target_resolver(Path(rel).name) if target_resolver else None
         compiled = _compile_state_source(store, rel, target)
-        out_path = repo_root / rel
+        out_path = resolve_source(repo_root, rel, repo_root)
 
         if check or dry_run:
             current = out_path.read_text(encoding="utf-8") if out_path.exists() else ""

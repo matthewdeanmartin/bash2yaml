@@ -86,6 +86,11 @@ def list_stray_files(root: Path) -> list[Path]:
         if path.is_dir():
             continue
 
+        # A killed writer can leave its unpublished temporary file behind.
+        # It is never output or integrity state, and must not block a retry.
+        if path.name.startswith(".bash2yaml-write-") and path.name.endswith(".tmp"):
+            continue
+
         # Skip files in the .bash2yaml directory
         if hash_dir in path.parents or path.parent == hash_dir:
             continue

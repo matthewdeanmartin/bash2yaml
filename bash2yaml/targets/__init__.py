@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from bash2yaml.errors.exceptions import ConfigInvalid
 from bash2yaml.targets.base import BaseTarget
 
 logger = logging.getLogger(__name__)
@@ -66,16 +67,14 @@ def detect_target(filename: str | None = None, directory: Path | None = None) ->
         directory: The input directory to inspect.
 
     Returns:
-        The matching :class:`BaseTarget`, or ``None`` if detection is ambiguous
-        or no match is found.
+        The matching :class:`BaseTarget`, or ``None`` when no match is found.
+        Raises ConfigInvalid when multiple platforms match.
     """
     _ensure_builtins()
     matches: list[BaseTarget] = []
 
     for target in _registry.values():
-        if filename and target.matches_filename(filename):
-            matches.append(target)
-        if directory and target.matches_directory(directory):
+        if (filename and target.matches_filename(filename)) or (directory and target.matches_directory(directory)):
             matches.append(target)
 
     if len(matches) == 1:
@@ -84,7 +83,7 @@ def detect_target(filename: str | None = None, directory: Path | None = None) ->
 
     if len(matches) > 1:
         names = ", ".join(t.name for t in matches)
-        logger.warning("Ambiguous target detection (matched: %s). Use --target to specify.", names)
+        raise ConfigInvalid(f"Ambiguous target detection (matched: {names}). Use --target to specify.")
 
     return None
 

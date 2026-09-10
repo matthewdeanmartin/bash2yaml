@@ -11,7 +11,7 @@ workflow. It exists for two situations:
 
 1. **Probationary use.** You want to try bash2yaml on a real repo before the
    team has agreed to adopt it. Your PRs must look like ordinary YAML edits.
-2. **Foreign-repo contributions.** You contribute to repos you don't own.
+1. **Foreign-repo contributions.** You contribute to repos you don't own.
    The host repo has its own conventions and won't accept tool artifacts, but
    nobody objects to cleaner bash.
 
@@ -52,9 +52,9 @@ location with `--state-dir` or `BASH2YAML_STATE_DIR`.
 
 Inside the state directory:
 
-- `hashes.json` — repo-relative path → sha256 of the last compiled content
+- `state.json` — versioned hashes and source mappings, saved together atomically
   (replaces `.hash` sidecars)
-- `sources.json` — which YAML files are adopted and where their sources live
+- Legacy `hashes.json` and `sources.json` are read until the first successful save creates `state.json`
 - `sources/` — the uncompiled YAML and extracted `.sh` files
 - `config.toml` — optional, the equivalent of `.bash2yaml.toml`
 
@@ -112,3 +112,17 @@ helper. See the scope checklist in `spec/TRACELESS.md`.
 ## Worked example
 
 See `examples/traceless/` for a copy-paste walkthrough on a tiny repo.
+
+## Interrupted writes and invalid state
+
+State writers use an operating-system lock and merge record updates, so parallel
+workers do not discard each other's hashes. Malformed state, unsupported versions,
+and invalid source paths produce an error instead of being treated as empty state.
+Restore the state directory from a known-good backup before retrying.
+
+Compiled output is validated and replaced atomically before its integrity record
+is updated. If an interruption leaves the output current but its record missing
+or stale, the next compile validates the regenerated content and repairs the
+record. Different content still triggers manual-edit protection. A multi-file run
+can leave some files completed before a failure; it is resumable, not a transaction
+that rolls back the entire output tree.

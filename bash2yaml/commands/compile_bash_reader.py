@@ -10,7 +10,7 @@ from pathlib import Path
 from bash2yaml.errors.exceptions import Bash2YamlError
 from bash2yaml.utils.github_expressions import strip_expression_pragma_lines
 from bash2yaml.utils.gitlab_components import strip_interpolation_pragma_lines
-from bash2yaml.utils.pathlib_polyfills import is_relative_to
+from bash2yaml.utils.source_paths import SourceSecurityError, resolve_source
 from bash2yaml.utils.utils import short_path
 
 __all__ = ["read_bash_script", "SourceSecurityError", "PragmaError", "SOURCE_COMMAND_REGEX"]
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 # - \s*$        - Optional whitespace until the end of the line.
 # SOURCE_COMMAND_REGEX = re.compile(r"^\s*(?:source|\.)\s+(?P<path>[\w./\\-]+)\s*$")
 # Handle optional comment.
-SOURCE_COMMAND_REGEX = re.compile(r"^\s*(?:source|\.)\s+(?P<path>[\w./\\-]+)\s*(?:#.*)?$")
+SOURCE_COMMAND_REGEX = re.compile(r"""^\s*(?:source|\.)\s+(?P<path>"[^"]+"|'[^']+'|[\w./\\-]+)\s*(?:#.*)?$""")
 
 # Regex to match pragmas like '# Pragma: do-not-inline'
 # It is case-insensitive to 'Pragma' and captures the command.
@@ -35,10 +35,6 @@ PRAGMA_REGEX = re.compile(
     r"#\s*Pragma:\s*(?P<command>do-not-inline(?:-next-line)?|start-do-not-inline|end-do-not-inline|allow-outside-root)",
     re.IGNORECASE,
 )
-
-
-class SourceSecurityError(Bash2YamlError):
-    pass
 
 
 class PragmaError(Bash2YamlError):
@@ -62,24 +58,11 @@ def secure_join(
         allowed_root: The root directory that sourced files cannot escape.
         bypass_security_check: If True, skips the check against allowed_root.
     """
-    # Normalize separators and strip quotes/whitespace
-    user_path = user_path.strip().strip('"').strip("'").replace("\\", "/")
-
-    # Resolve relative to the including script's directory
-    candidate = (base_dir / user_path).resolve(strict=True)
-
-    # Ensure the real path (after following symlinks) is within allowed_root
-    allowed_root = allowed_root.resolve(strict=True)
-
-    if not os.environ.get("BASH2YAML_SKIP_ROOT_CHECKS") and not bypass_security_check:
-        if not is_relative_to(candidate, allowed_root):
-            raise SourceSecurityError(f"Refusing to source '{candidate}': escapes allowed root '{allowed_root}'.")
-    elif bypass_security_check:
-        logger.warning(
-            "Security check explicitly bypassed for path '%s' due to 'allow-outside-root' pragma.",
-            candidate,
-        )
-
+    candidate = resolve_source(base_dir, user_path, allowed_root, bypass=bypass_security_check)
+    if not candidate.exists():
+        raise FileNotFoundError(candidate)
+    if bypass_security_check:
+        logger.warning("Root check explicitly bypassed by allow-outside-root pragma: %s", candidate)
     return candidate
 
 
@@ -121,6 +104,7 @@ def inline_bash_source(
     allowed_root: Path | None = None,
     max_depth: int = 64,
     _depth: int = 0,
+    _entry_checked: bool = False,
 ) -> str:
     """
     Reads a bash script and recursively inlines content from sourced files,
@@ -159,10 +143,14 @@ def inline_bash_source(
 
     # Normalize and security-check the entry script itself
     try:
-        main_script_path = secure_join(
-            base_dir=main_script_path.parent if main_script_path.is_absolute() else Path.cwd(),
-            user_path=str(main_script_path),
-            allowed_root=allowed_root,
+        main_script_path = (
+            main_script_path
+            if _entry_checked
+            else secure_join(
+                base_dir=main_script_path.parent if main_script_path.is_absolute() else Path.cwd(),
+                user_path=str(main_script_path),
+                allowed_root=allowed_root,
+            )
         )
     except FileNotFoundError:
         raise FileNotFoundError(f"Script not found: {main_script_path}") from None
@@ -285,6 +273,7 @@ def inline_bash_source(
                         allowed_root=allowed_root,
                         max_depth=max_depth,
                         _depth=_depth + 1,
+                        _entry_checked=True,
                     )
                     final_content_lines.append(inlined)
                 else:

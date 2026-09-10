@@ -77,6 +77,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Parallel compilation preserves built-in targets, effective configuration, and deterministic YAML formatting.
+- Input paths and symlink targets are checked consistently for Bash, interpreter, artifact, and traceless sources.
+- Generated files use atomic writes; interrupted compiles retry and repair matching output integrity records.
+- Versioned state saves merge concurrent updates and reject malformed records, with automatic legacy migration.
+- Ambiguous target selection, missing interpreter/artifact inputs, and failed requested autogit actions report failure.
+
 - Handler exit codes now propagate to the shell: `detect-drift` exits 1 on
   drift, `validate` exits 1 on invalid files, `lint` exits 2 on lint
   failures (previously these were swallowed and the process exited 0).

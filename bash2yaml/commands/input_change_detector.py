@@ -13,6 +13,7 @@ from pathlib import Path
 
 from ruamel.yaml import YAML
 
+from bash2yaml.utils.atomic_io import atomic_write_text
 from bash2yaml.utils.yaml_factory import get_yaml
 
 logger = logging.getLogger(__name__)
@@ -68,11 +69,7 @@ def _read_stored_hash(hash_file: Path) -> str | None:
 
 def _write_hash(hash_file: Path, content_hash: str) -> None:
     """Write hash to hash file."""
-    try:
-        hash_file.parent.mkdir(parents=True, exist_ok=True)
-        hash_file.write_text(content_hash, encoding="utf-8")
-    except Exception as e:
-        logger.warning(f"Failed to write hash file {hash_file}: {e}")
+    atomic_write_text(hash_file, content_hash)
 
 
 class InputChangeDetector:
@@ -143,6 +140,9 @@ class InputChangeDetector:
             logger.warning(f"Input directory does not exist: {input_dir}")
             return True
 
+        if (self.hash_dir.parent / "compilation.pending").exists():
+            return True
+
         # Get all relevant input files
         input_files: list[Path] = []
         for pattern in ["*.yml", "*.yaml", "*.sh", "*.py", "*.js", "*.rb", "*.php", "*.fish"]:
@@ -202,13 +202,10 @@ class InputChangeDetector:
             input_files.extend(input_dir.rglob(pattern))
 
         for file_path in input_files:
-            try:
-                current_hash = compute_content_hash(file_path)
-                hash_file = self._get_hash_file_path(file_path)
-                _write_hash(hash_file, current_hash)
-                logger.debug(f"Updated hash for {file_path}")
-            except Exception as e:
-                logger.warning(f"Failed to update hash for {file_path}: {e}")
+            current_hash = compute_content_hash(file_path)
+            hash_file = self._get_hash_file_path(file_path)
+            _write_hash(hash_file, current_hash)
+            logger.debug(f"Updated hash for {file_path}")
 
     def cleanup_stale_hashes(self, input_dir: Path) -> None:
         """Remove hash files for input files that no longer exist.

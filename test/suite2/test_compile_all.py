@@ -312,14 +312,13 @@ class TestWriteCompiledFile:
         with pytest.raises((CompileError, Exception)):
             write_compiled_file(out_file, MINIMAL_VALID_YAML, out_base)
 
-    def test_raises_if_hash_missing(self, tmp_path):
+    def test_missing_hash_is_repaired_when_content_matches(self, tmp_path):
         out_base = tmp_path / "out"
         out_base.mkdir()
         out_file = out_base / "ci.yml"
         # Write file but no hash
         out_file.write_text(MINIMAL_VALID_YAML)
-        with pytest.raises((CompileError, Exception)):
-            write_compiled_file(out_file, MINIMAL_VALID_YAML, out_base)
+        assert write_compiled_file(out_file, MINIMAL_VALID_YAML, out_base) is False
 
     def test_dry_run_no_file_written(self, tmp_path):
         out_base = tmp_path / "out"

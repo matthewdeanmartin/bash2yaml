@@ -1474,12 +1474,15 @@ def main() -> int:
             input_directory = Path(args.input_dir)
         if hasattr(args, "input_file") and args.input_file:
             input_filename = Path(args.input_file).name
-        args.resolved_target = resolve_target(
-            cli_target=args.target,
-            config_target=config.target,
-            filename=input_filename,
-            directory=input_directory,
-        )
+        try:
+            args.resolved_target = resolve_target(
+                cli_target=args.target,
+                config_target=config.target,
+                filename=input_filename,
+                directory=input_directory,
+            )
+        except (Bash2YamlError, ValueError) as exc:
+            parser.error(str(exc))
 
     # Merge boolean flags
     args.verbose = getattr(args, "verbose", False) or config.verbose or False

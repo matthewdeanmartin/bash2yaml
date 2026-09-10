@@ -20,6 +20,7 @@ from pathlib import Path
 __all__ = ["maybe_inline_interpreter_command"]
 
 from bash2yaml.errors.exceptions import Bash2YamlError
+from bash2yaml.utils.source_paths import resolve_source, source_root
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +106,6 @@ _INTERPRETER_EXTS: dict[str, tuple[str, ...]] = {
 }
 
 # Match common interpreter invocations. Supports python -m, deno/bun run, and tail args.
-# BUG: might not handle script files with spaces in the name. Maybe use shlex.split().
 _INTERP_LINE = re.compile(
     r"""
     ^\s*
@@ -122,7 +122,7 @@ _INTERP_LINE = re.compile(
     (?:
         -m\s+(?P<module>[A-Za-z0-9_\.]+)  # python -m package.module
         |
-        (?P<path>\.?/?[^\s]+)             # or a script path
+        (?P<path>"[^"]+"|'[^']+'|[^\s]+)             # or a script path
     )
     (?P<rest>\s+.*)?              # preserve trailing args/files
     \s*$
@@ -148,7 +148,7 @@ def normalize_interp(interp: str) -> str:
 
 
 def resolve_interpreter_target(
-    interp: str, module: str | None, path_str: str | None, scripts_root: Path
+    interp: str, module: str | None, path_str: str | None, scripts_root: Path, allowed_root: Path | None = None
 ) -> tuple[Path, str]:
     """Resolve the target file and a display label from either a module or a path.
     For python -m, map "a.b.c" -> a/b/c.py
@@ -157,11 +157,11 @@ def resolve_interpreter_target(
         if normalize_interp(interp) != "python":
             raise Bash2YamlError(f"-m is only supported for python, got: {interp}")
         rel = Path(module.replace(".", "/") + ".py")
-        return scripts_root / rel, f"python -m {module}"
+        return resolve_source(scripts_root, rel, allowed_root or source_root(scripts_root)), f"python -m {module}"
     if path_str:
-        rel_str = Path(path_str.strip()).as_posix().lstrip("./")
+        rel_str = path_str.strip().strip('"').strip("'")
         shown = f"{interp} {Path(rel_str).as_posix()}"
-        return scripts_root / rel_str, shown
+        return resolve_source(scripts_root, rel_str, allowed_root or source_root(scripts_root)), shown
     raise Bash2YamlError("Neither module nor path provided.")
 
 
@@ -179,9 +179,8 @@ def read_script_bytes(p: Path) -> str | None:
     try:
         text = p.read_text(encoding="utf-8")
     # reading local workspace file
-    except Exception as e:  # nosec
-        logger.warning("Could not read %s: %s; preserving original.", p, e)
-        return None
+    except (OSError, UnicodeError) as e:
+        raise Bash2YamlError(f"Could not read interpreter source {p}: {e}") from e
     # Strip UTF-8 BOM if present
     if text.startswith("\ufeff"):
         text = text.lstrip("\ufeff")
@@ -204,10 +203,14 @@ def build_eval_command(interp: str, flag: str | None, quoted: str, rest: str | N
     return f"{interp} {flag} {quoted}{r}"
 
 
-def maybe_inline_interpreter_command(line: str, scripts_root: Path) -> tuple[list[str], Path] | tuple[None, None]:
+def maybe_inline_interpreter_command(
+    line: str, scripts_root: Path, *, allowed_root: Path | None = None
+) -> tuple[list[str], Path] | tuple[None, None]:
     """If *line* looks like an interpreter execution we can inline, return:
     [BEGIN_MARK, <interpreter -flag 'code'>, END_MARK]. Otherwise, return None.
     """
+    if re.search(r"#\s*pragma:\s*do-not-inline\b", line, re.IGNORECASE):
+        return None, None
     m = _INTERP_LINE.match(line)
     if not m:
         return None, None
@@ -218,15 +221,17 @@ def maybe_inline_interpreter_command(line: str, scripts_root: Path) -> tuple[lis
     path_str = m.group("path")
     rest = m.group("rest") or ""
 
+    if path_str and (path_str.startswith("-") or not is_reasonable_ext(interp, Path(path_str.strip("\"'")))):
+        return None, None
+
     try:
-        target_file, shown = resolve_interpreter_target(interp_raw, module, path_str, scripts_root)
+        target_file, shown = resolve_interpreter_target(interp_raw, module, path_str, scripts_root, allowed_root)
     except ValueError as e:
         logger.debug("Interpreter inline skip: %s", e)
         return None, None
 
     if not target_file.is_file():
-        logger.warning("Could not inline %s: file not found at %s; preserving original.", shown, target_file)
-        return None, None
+        raise Bash2YamlError(f"Could not inline {shown}: source file not found at {target_file}")
 
     if not is_reasonable_ext(interp, target_file):
         logger.debug("Interpreter inline skip: extension %s not expected for %s", target_file.suffix, interp)

@@ -27,6 +27,7 @@ from ruamel.yaml.scalarstring import FoldedScalarString
 from bash2yaml.config import config
 from bash2yaml.errors.exceptions import ValidationFailed
 from bash2yaml.targets.base import BaseTarget
+from bash2yaml.utils.atomic_io import atomic_write_text
 from bash2yaml.utils.github_expressions import EXPRESSION_REGEX
 from bash2yaml.utils.gitlab_components import INTERPOLATION_REGEX, split_component_template
 from bash2yaml.utils.mock_ci_vars import generate_mock_ci_variables_script
@@ -237,7 +238,7 @@ def generate_makefile(jobs_info: dict[str, dict[str, str]], output_dir: Path, dr
     logger.info("Generating Makefile at: %s", short_path(makefile_path))
 
     if not dry_run:
-        makefile_path.write_text(makefile_content, encoding="utf-8")
+        atomic_write_text(makefile_path, makefile_content)
 
 
 # --- decompilers ---------------------------------------------------------------
@@ -273,7 +274,7 @@ def decompile_variables_block(
 
     if not dry_run:
         script_filepath.parent.mkdir(parents=True, exist_ok=True)
-        script_filepath.write_text(full_script_content, encoding="utf-8")
+        atomic_write_text(script_filepath, full_script_content)
         script_filepath.chmod(0o755)
 
     return script_filename
@@ -352,7 +353,7 @@ def decompile_script_block(
 
     if not dry_run:
         script_filepath.parent.mkdir(parents=True, exist_ok=True)
-        script_filepath.write_text(full_script_content, encoding="utf-8")
+        atomic_write_text(script_filepath, full_script_content)
         script_filepath.chmod(0o755)
 
     # Compute bash command relative to YAML
@@ -553,16 +554,15 @@ def run_decompile_gitlab_file(
             body_buf = io.StringIO()
             yaml.dump(data, body_buf)
             out_text = component.reassemble(body_buf.getvalue()) if component is not None else body_buf.getvalue()
-            output_yaml_path.write_text(out_text, encoding="utf-8")
-            with output_yaml_path.open() as f:
-                new_content = f.read()
-                if target is not None:
-                    ok, problems = target.validate(new_content)
-                else:
-                    validator = GitLabCIValidator()
-                    ok, problems = validator.validate_ci_config(new_content)
-                if not ok:
-                    raise ValidationFailed(problems)
+            if target is not None:
+                ok, problems = target.validate(out_text)
+            else:
+                validator = GitLabCIValidator()
+                ok, problems = validator.validate_ci_config(out_text)
+            if not ok:
+                raise ValidationFailed(problems)
+            atomic_write_text(output_yaml_path, out_text)
+
     else:
         logger.info("No script or variable blocks found to decompile.")
 
