@@ -262,11 +262,7 @@ def process_script_list(
             try:
                 bash_code = read_bash_script(script_path, allowed_root=allowed_root)
             except (FileNotFoundError, ValueError) as e:
-                message = (
-                    f"Could not inline script '{script_path_str}': {e}\n"
-                    f"  - Expected to find it at '{script_path}' (paths resolve relative to the input directory).\n"
-                    f"  - If this line is plain shell and not a script reference, append `# Pragma: do-not-inline` to it."
-                )
+                message = f"Could not inline script '{script_path_str}': {e}\n  - Expected to find it at '{script_path}' (paths resolve relative to the input directory).\n  - If this line is plain shell and not a script reference, append `# Pragma: do-not-inline` to it."
                 logger.warning(message)
                 raise Bash2YamlError(message) from e
             bash_lines = bash_code.splitlines()
@@ -643,9 +639,7 @@ def _write_compiled_file_no_sidecar(
             matches = store.content_matches(relpath, current_content)
             if matches is None:
                 raise CompileError(
-                    f"Refusing to overwrite '{short_path(output_file)}': no integrity record for it in the "
-                    f"state directory ({store.state_dir}).\n"
-                    "Run `traceless adopt` on this file first, or pass --force to overwrite."
+                    f"Refusing to overwrite '{short_path(output_file)}': no integrity record for it in the state directory ({store.state_dir}).\nRun `traceless adopt` on this file first, or pass --force to overwrite."
                 )
             if matches is False:
                 diff_text = diff_helpers.unified_diff(
@@ -656,11 +650,7 @@ def _write_compiled_file_no_sidecar(
                     "newly compiled",
                 )
                 raise CompileError(
-                    f"Manual edit detected in '{short_path(output_file)}' since the last compile "
-                    f"(state record at {store.state_dir} does not match).\n"
-                    "To keep the manual changes, fold them into the source scripts first; "
-                    "to discard them, re-run with --force.\n"
-                    f"{diff_text}"
+                    f"Manual edit detected in '{short_path(output_file)}' since the last compile (state record at {store.state_dir} does not match).\nTo keep the manual changes, fold them into the source scripts first; to discard them, re-run with --force.\n{diff_text}"
                 )
         elif store is None:
             logger.warning(

@@ -9,6 +9,7 @@ from typing import Any, Literal
 from urllib.parse import quote_plus
 
 import certifi
+
 try:
     import orjson as _orjson  # faster JSON when available
 
@@ -29,6 +30,8 @@ except ImportError:
     def _json_dumps(obj: Any, **kwargs: Any) -> str:  # type: ignore[misc]
         kwargs.setdefault("indent", 2)
         return _json.dumps(obj, **kwargs)
+
+
 import urllib3
 from packaging.version import InvalidVersion, Version
 from ruamel.yaml import YAML
@@ -179,7 +182,7 @@ class GitLabClient:
         page = 1
         while True:
             r = self._get(
-                f"/api/v4/projects/{self._proj_id(project_path)}/repository/tags" f"?per_page={per_page}&page={page}",
+                f"/api/v4/projects/{self._proj_id(project_path)}/repository/tags?per_page={per_page}&page={page}",
                 _ok=(200, 404),
             )
             if r.status_code != 200:

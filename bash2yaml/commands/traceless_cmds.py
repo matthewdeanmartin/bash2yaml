@@ -140,9 +140,7 @@ def run_traceless_adopt(
         diff_text = diff_helpers.unified_diff(original_text, recompiled, in_file, "original", "recompiled")
         stats = diff_helpers.diff_stats(diff_text)
         print(
-            "Note: recompiling normalizes formatting "
-            f"({stats.changed} line(s) will change on the first compile: "
-            f"+{stats.insertions}, -{stats.deletions})."
+            f"Note: recompiling normalizes formatting ({stats.changed} line(s) will change on the first compile: +{stats.insertions}, -{stats.deletions})."
         )
         print("The working tree was NOT modified. The first `traceless compile` will apply the normalization.")
     print(f"State directory: {store.state_dir}")

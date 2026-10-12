@@ -299,9 +299,7 @@ def inline_bash_source(
         if "PYTEST_CURRENT_TEST" in os.environ:
             raise
         raise Bash2YamlError(
-            f"Failed to inline '{short_path(main_script_path)}': {e}\n"
-            "  - If a `source`/`.` line in this script should be kept as-is instead of inlined, "
-            "append `# Pragma: do-not-inline` to that line."
+            f"Failed to inline '{short_path(main_script_path)}': {e}\n  - If a `source`/`.` line in this script should be kept as-is instead of inlined, append `# Pragma: do-not-inline` to that line."
         ) from e
 
     final = "".join(final_content_lines)

@@ -21,6 +21,7 @@ except ImportError:
     def _json_dumps(obj: object) -> str:  # type: ignore[misc]
         return _stdlib_json.dumps(obj)
 
+
 from bash2yaml.targets.base import BaseTarget
 from bash2yaml.utils.terminal_colors import Colors
 from bash2yaml.utils.validate_pipeline import GitLabCIValidator, ValidationResult, validate_gitlab_ci_yaml

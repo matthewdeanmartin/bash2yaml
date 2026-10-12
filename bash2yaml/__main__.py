@@ -695,8 +695,7 @@ def add_state_dir_argument(parser: argparse.ArgumentParser) -> None:
         "--state-dir",
         dest="state_dir",
         default=None,
-        help="Override where out-of-tree state is stored (default: per-repo dir under the user state home; "
-        "BASH2YAML_STATE_DIR also works).",
+        help="Override where out-of-tree state is stored (default: per-repo dir under the user state home; BASH2YAML_STATE_DIR also works).",
     )
 
 
@@ -716,8 +715,7 @@ def add_autogit_argument(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--autogit",
         action="store_true",
-        help="Automatically stage, commit, and/or push changes after the command succeeds. "
-        "Behavior is configured in [tool.bash2yaml.autogit].",
+        help="Automatically stage, commit, and/or push changes after the command succeeds. Behavior is configured in [tool.bash2yaml.autogit].",
     )
 
 
@@ -788,8 +786,7 @@ def main() -> int:
         "--in",
         dest="input_dir",
         required=False,
-        help="Input directory containing the uncompiled `.gitlab-ci.yml` and other sources. "
-        "Use `-` to compile a single YAML document from stdin to stdout.",
+        help="Input directory containing the uncompiled `.gitlab-ci.yml` and other sources. Use `-` to compile a single YAML document from stdin to stdout.",
     )
     compile_parser.add_argument(
         "--out",
@@ -834,8 +831,7 @@ def main() -> int:
     compile_parser.add_argument(
         "--traceless",
         action="store_true",
-        help="Zero-footprint mode: implies --no-header --no-fences --no-hash --in-place and compiles "
-        "adopted files from the out-of-tree state dir (see `bash2yaml traceless --help`).",
+        help="Zero-footprint mode: implies --no-header --no-fences --no-hash --in-place and compiles adopted files from the out-of-tree state dir (see `bash2yaml traceless --help`).",
     )
     add_state_dir_argument(compile_parser)
     add_json_argument(compile_parser)
@@ -892,8 +888,7 @@ def main() -> int:
     decompile_parser.add_argument(
         "--traceless",
         action="store_true",
-        help="Write extracted .sh files to the out-of-tree state dir instead of the working tree. "
-        "The input YAML is left untouched.",
+        help="Write extracted .sh files to the out-of-tree state dir instead of the working tree. The input YAML is left untouched.",
     )
     decompile_parser.add_argument(
         "--no-rewrite",
@@ -974,8 +969,7 @@ def main() -> int:
     init_parser.add_argument(
         "--component",
         metavar="NAME",
-        help="Non-interactively scaffold a GitLab CI/CD component repo "
-        "(src/NAME/template.yml with a spec:inputs header, compiled to templates/NAME/template.yml).",
+        help="Non-interactively scaffold a GitLab CI/CD component repo (src/NAME/template.yml with a spec:inputs header, compiled to templates/NAME/template.yml).",
     )
     add_common_arguments(init_parser)
     init_parser.set_defaults(func=init_handler)  # Changed from init_handler to run_init
@@ -1092,8 +1086,7 @@ def main() -> int:
         "check-pins",
         help="Analyze GitLab CI 'include' statements and suggest pinning to tags.",
         description=(
-            "Scans a .gitlab-ci.yml file for 'project' includes and checks their refs (tags, branches, commits).\n"
-            "Suggests pinning to the latest semantic version tag for stability.\n\n"
+            "Scans a .gitlab-ci.yml file for 'project' includes and checks their refs (tags, branches, commits).\nSuggests pinning to the latest semantic version tag for stability.\n\n"
             + "GitLab connection options are required via CLI or config."
         ),
         formatter_class=argparse.RawTextHelpFormatter,
@@ -1275,8 +1268,7 @@ def main() -> int:
         "--in",
         dest="input_dir",
         required=not bool(config.compile_input_dir),
-        help="Input directory containing the `.gitlab-ci.yml` and other sources. "
-        "Use `-` to validate a single YAML document from stdin.",
+        help="Input directory containing the `.gitlab-ci.yml` and other sources. Use `-` to validate a single YAML document from stdin.",
     )
     validate_parser.add_argument(
         "--out",
@@ -1314,8 +1306,7 @@ def main() -> int:
         "traceless",
         help="Zero-footprint workflow: state lives outside the repo; compiled YAML looks hand-written.",
         description=(
-            "Traceless mode keeps all bash2yaml state (sources, hashes, config) outside the working tree "
-            "and emits YAML with no headers, fences, or hash sidecars. See docs/usage/traceless.md."
+            "Traceless mode keeps all bash2yaml state (sources, hashes, config) outside the working tree and emits YAML with no headers, fences, or hash sidecars. See docs/usage/traceless.md."
         ),
     )
     traceless_subparsers = traceless_parser.add_subparsers(dest="traceless_command", required=True)
