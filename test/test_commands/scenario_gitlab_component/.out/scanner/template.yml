@@ -18,10 +18,10 @@ spec:
 "$[[ inputs.job-prefix ]]-scan":
   stage: $[[ inputs.stage ]]
   script:
-    - |-
-      # >>> BEGIN inline: scripts/scan.sh
-      set -euo pipefail
+  - |-
+    # >>> BEGIN inline: scripts/scan.sh
+    set -euo pipefail
 
-      echo "Scanning during the $[[ inputs.stage ]] stage"
-      echo "scan complete"
-      # <<< END inline
+    echo "Scanning during the $[[ inputs.stage ]] stage"
+    echo "scan complete"
+    # <<< END inline
