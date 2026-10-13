@@ -14,7 +14,7 @@ __all__ = [
 ]
 
 __title__ = "bash2yaml"
-__version__ = "0.11.1"
+__version__ = "1.0.0"
 __description__ = "Compile bash to pipeline yaml- Gitlab, GitHub and more"
 __readme__ = "README.md"
 __credits__ = [{"name": "Matthew Martin", "email": "matthewdeanmartin@gmail.com"}]
