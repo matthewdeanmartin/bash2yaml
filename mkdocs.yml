@@ -1,5 +1,5 @@
 site_name: "bash2yaml"
-site_url: "https://bash2yaml.readthedocs.io/"
+site_url: "https://bash2yaml.readthedocs.io/en/latest/"
 site_author: "Matthew Dean Martin <matthewdeanmartin@gmail.com>"
 site_description: "Documentation of bash2yaml, a tool for compiling bash into CI/CD YAML (GitLab CI, GitHub Actions, and more)"
 
@@ -19,6 +19,7 @@ markdown_extensions:
       permalink: true
 
 nav:
+  - "Home": "index.md"
   - "Overview":
       - "Readme.md": "overview/README.md"
       - "Who is this for?": "overview/who_is_this_for.md"
@@ -32,6 +33,7 @@ nav:
       - "GitHub Reusable Workflows": "usage/github-reusable.md"
       - "Traceless Mode": "usage/traceless.md"
   - "Level up your YAML + Bash":
+      - "Why quality gates matter": "quality_gates/what_are_quality_gates.md"
       - "Orchestrating " : "quality_gates/orchestrating.md"
       - "Formatting YAML": "quality_gates/formatting.md"
       - "Linting" : "quality_gates/linting.md"
@@ -45,6 +47,9 @@ nav:
     - "Contributing": "extending/CONTRIBUTING.md"
   - "Prior Art":
       - "Keep Bash in Yaml": "PRIOR_ART.md"
+  - "Research":
+      - "Orchestration": "research/orchestration.md"
+      - "YAML formatting": "research/yaml_formatting.md"
   - "Change Log": "CHANGELOG.md"
 
 validation:
@@ -57,5 +62,6 @@ validation:
 
 plugins:
   - search
+  - autorefs
   - mkdocstrings
   - print-site

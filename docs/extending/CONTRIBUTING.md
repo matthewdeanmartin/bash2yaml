@@ -3,7 +3,7 @@
 ## Ways to contribute
 
 - Open a ticket for a bug or feature.
-- Customize via configuration, see [example config](examples/sample_config/pyproject.toml)
+- Customize via configuration, see the [example config](https://github.com/matthewdeanmartin/bash2yaml/blob/main/examples/sample_config/pyproject.toml)
 - Merge request. Open ticket, check if anyone is home, see below for house style and build.
 - Built-in target adapters for supported CI platforms.
 - Extend via public API. Public python API might not be super stable yet, consider pinning your version.

@@ -222,3 +222,7 @@ SOURCE.md
 
 # Local distribution verification and isolated install environments
 /.build/
+
+/landing/public/
+/landing/resources/
+/landing/.hugo_build.lock

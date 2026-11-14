@@ -159,7 +159,7 @@ make_docs:
 	pdoc bash2yaml --html -o docs --force
 
 check_md:
-	$(VENV) linkcheckMarkdown README.md
+	uv tool run --no-build --python 3.13 --with-requirements docs/requirements.txt mkdocs build --strict
 	$(VENV) markdownlint README.md --config .markdownlintrc
 	$(VENV) mdformat README.md docs/*.md
 

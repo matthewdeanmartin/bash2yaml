@@ -7,6 +7,6 @@ echo
 uv run mdformat .
 
 echo
-echo "Are the links okay?"
+echo "Checking documentation build and internal links"
 echo
-uv run linkcheckMarkdown .
+uv tool run --no-build --python 3.13 --with-requirements docs/requirements.txt mkdocs build --strict

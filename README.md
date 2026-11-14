@@ -211,6 +211,7 @@ To define variables that should be inlined into the global `variables:` block of
 - **Single Statement Invocations:** The script invocation must be on its own line. Multi-statement lines like
   `echo "hello" && script.sh` are not supported.
 - **Comments:** Comments in the source YAML may not be preserved in the final compiled output.
+- **Native speedups:** If optional `rtoml` or `orjson` wheels are unavailable, the portable TOML and JSON paths remain available.
 
 ## How It Compares
 
@@ -244,19 +245,9 @@ To define variables that should be inlined into the global `variables:` block of
 
 ## Project Links
 
+- [Homepage](https://matthewdeanmartin.github.io/bash2yaml/)
 - [GitHub](https://github.com/matthewdeanmartin/bash2yaml)
 - [PyPI](https://pypi.org/project/bash2yaml/)
 - [Documentation](https://bash2yaml.readthedocs.io/en/latest/)
 - [Bug Tracker](https://github.com/matthewdeanmartin/bash2yaml/issues)
 - [Change Log](https://github.com/matthewdeanmartin/bash2yaml/blob/main/CHANGELOG.md)
-
-
-## Python 3.15 RC3 verification (2026-10-04)
-
-Refreshed dependencies with `uv lock --upgrade`; lock check passes. 1140 tests pass / 7 skip with stable and prerelease-allowed dependencies on Python 3.15.0rc3 and on 3.14.7, using published wheels only. The experimental environments selected no dependency prereleases. Full development setup remains wheel-blocked by linkcheckmd; broad quality gates requiring it were not run.
-
-Full RC3 suites and installed-wheel TOML/JSON round trips pass without rtoml or orjson. These portable fallbacks already exist on PyPI; no new fallback was added.
-
-Local 0.11.1 trails PyPI 1.0.0; reconcile the current release branch before publishing.
-
-No dependency source builds or GitHub jobs. Changes local; human operators decide releases and upstream reporting.

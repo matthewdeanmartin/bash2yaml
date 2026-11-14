@@ -145,7 +145,7 @@ Validates and formats markdown files.
 make check_md
 ```
 
-- Runs `linkcheckMarkdown` - checks for broken links
+- Runs a strict MkDocs build to check documentation structure and internal links
 - Runs `markdownlint` - lints markdown style
 - Runs `mdformat` - **FORMATS MARKDOWN FILES**
 

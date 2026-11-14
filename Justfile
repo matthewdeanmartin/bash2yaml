@@ -137,7 +137,7 @@ make-docs:
 
 # Check markdown
 check-md:
-    {{venv}} linkcheckMarkdown README.md
+    uv tool run --no-build --python 3.13 --with-requirements docs/requirements.txt mkdocs build --strict
     {{venv}} markdownlint README.md --config .markdownlintrc
     {{venv}} mdformat README.md docs/*.md
 

@@ -1,0 +1,4 @@
+baseURL = 'https://matthewdeanmartin.github.io/bash2yaml/'
+locale = 'en-us'
+title = 'bash2yaml — write Bash, ship pipeline YAML'
+disableKinds = ['taxonomy', 'term', 'RSS']
